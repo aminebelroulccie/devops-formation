@@ -5,7 +5,7 @@ diapositives, scripts formateur, fiches d'atelier, code et scripts d'installatio
 
 ## Ouvrir les diapositives
 
-Double-cliquez sur [`slides/index.html`](slides/index.html), puis choisissez la journée. Une version anglaise de chaque deck est dans [`slides/en/`](slides/en/index.html) (lien « English version » en haut de la page).
+Double-cliquez sur [`slides/index.html`](slides/index.html), puis choisissez la journée. Une version anglaise de chaque deck est dans [`slides/en/`](slides/en/index.html) (lien « English version » en haut de la page). L'ensemble du matériel existe aussi en anglais : voir [`README.en.md`](README.en.md).
 Les decks sont des pages HTML autonomes (reveal.js, polices et photos embarqués dans `assets/`) :
 aucun logiciel à installer, ils fonctionnent entièrement hors ligne.
 
@@ -20,6 +20,7 @@ aucun logiciel à installer, ils fonctionnent entièrement hors ligne.
 
 ```
 slides/                  les 5 decks + index.html (français) ; slides/en/ : les mêmes en anglais
+README.en.md, *.en.md, guide-formateur/en/, projet-final/en/   versions anglaises des documents
 assets/                  thème (theme.css), initialisation (deck.js), logo Formini, reveal.js,
                          polices (fonts/), photos libres de droits (img/ + CREDITS.md)
 guide-formateur/         jour1.md … jour5.md : déroulé minute par minute, démos, pièges

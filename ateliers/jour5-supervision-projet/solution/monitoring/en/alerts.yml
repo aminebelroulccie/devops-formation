@@ -1,0 +1,54 @@
+# Alert rules — Formini Tasks
+# Check the syntax: docker run --rm -v $PWD:/cfg --entrypoint promtool prom/prometheus:v2.55.1 check rules /cfg/alerts.yml
+groups:
+  - name: formini-tasks
+    rules:
+      # The application has not answered scrapes for 1 minute
+      - alert: AppDown
+        expr: up{job=~"formini-tasks.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: equipe-a
+        annotations:
+          summary: "Formini Tasks is down ({{ $labels.instance }})"
+          description: "Prometheus has been unable to scrape /metrics for 1 minute."
+
+      # More than 5% of responses are 5xx over a 5-minute window
+      - alert: HighErrorRate
+        expr: |
+          100 * sum(rate(http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(http_requests_total[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: equipe-a
+        annotations:
+          summary: "5xx error rate above 5%"
+          description: "{{ $value | printf \"%.1f\" }} % of requests have been failing for 2 minutes."
+
+      # p95 latency exceeds 500 ms
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: equipe-a
+        annotations:
+          summary: "p95 latency above 500 ms"
+          description: "p95 = {{ $value | printf \"%.2f\" }} s over the last 5 minutes."
+
+  - name: machine
+    rules:
+      # Less than 10% free disk space on /
+      - alert: DiskAlmostFull
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/"}
+            / node_filesystem_size_bytes{mountpoint="/"} * 100 < 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root disk almost full ({{ $value | printf \"%.0f\" }}% free)"
