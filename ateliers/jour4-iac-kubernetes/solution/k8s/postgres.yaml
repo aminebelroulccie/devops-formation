@@ -1,0 +1,67 @@
+# Base de données : un seul exemplaire, avec un volume persistant.
+# (En production : StatefulSet, opérateur, ou service managé type RDS.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: formini-tasks
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: formini-tasks
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # jamais deux postgres sur le même volume
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports: [{ containerPort: 5432 }]
+          env:
+            - name: POSTGRES_USER
+              value: formini
+            - name: POSTGRES_DB
+              value: tasks
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tasks-secret, key: POSTGRES_PASSWORD }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, formini, -d, tasks]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres            # => DNS "postgres" dans le namespace
+  namespace: formini-tasks
+spec:
+  type: ClusterIP
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]

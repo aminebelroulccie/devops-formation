@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Day 1 — DevOps Fundamentals and Git · Formini</title>
+  <link rel="icon" href="../../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../../assets/theme.css">
+</head>
+<body data-deck="DevOps Training · Day 1 · Fundamentals &amp; Git" data-assets="../../assets/">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COVER ============================ -->
+<section class="dark cover" data-photo="cover-team.jpg">
+  <img class="logo plain" src="../../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">01<small>Day 1 / 5</small></div>
+  <h1>DevOps Fundamentals <em>&amp;</em> Git</h1>
+  <p class="meta"><span>Sunday 8 November 2026</span><span>09:00 – 16:00</span><span>DevOps Training · 5 days</span></p>
+  <aside class="notes">
+    Welcome. Introduce yourself in 1 minute: background, why DevOps. Quick round of the room: first name, role, one tool you already use (Git? Docker?). Note the levels so you can adapt the labs. Go over the logistics: breaks at 10:30 and 12:00, Formini machines only, no labs on personal laptops.
+  </aside>
+</section>
+
+<!-- ============================ WEEK OBJECTIVE ============================ -->
+<section>
+  <span class="eyebrow">The week at a glance</span>
+  <h2>From code to a <em>monitored</em> deployment, in five days</h2>
+  <div class="flow">
+    <div class="on"><b>Day 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div><b>Day 2</b>Docker &amp; Compose</div>
+    <div><b>Day 3</b>CI/CD with Gitea Actions</div>
+    <div><b>Day 4</b>Terraform, Ansible, Kubernetes</div>
+    <div><b>Day 5</b>Prometheus, Grafana, final project</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>One common thread</h3>
+      <p>A small web application, <strong>Formini Tasks</strong>, that you will version, containerize, test automatically, deploy on Kubernetes and monitor.</p>
+    </div>
+    <div>
+      <h3>One rule</h3>
+      <p>Every concept is <strong>practiced within the hour</strong>: theory in the morning, a guided lab, then a self-paced challenge in the afternoon.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the progression: each day builds on the previous one. The Git repository created today is the one we containerize tomorrow and that the pipeline will build on day 3. Stress it: the labs are not optional, that is where the learning happens.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="library.jpg">
+  <span class="eyebrow">Today's agenda</span>
+  <h2>Understanding DevOps principles and collaborating with Git</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>DevOps</strong>: culture, principles, benefits · <strong>Linux essentials</strong></span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Coffee break</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Guided lab</strong>: a Linux server reachable over SSH with a key</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Lunch break</span></li>
+    <li><span class="t">13:00 – 14:00</span><span><strong>Git</strong>: commits, branches, merges, conflicts · <strong>Gitea</strong> and pull requests</span></li>
+    <li><span class="t">14:00 – 15:30</span><span><strong>Team challenge</strong>: shared repository, branches, PRs, code review</span></li>
+    <li><span class="t">15:30 – 16:00</span><span>Wrap-up and Q&amp;A</span></li>
+  </ul>
+  <aside class="notes">
+    Walk through the agenda in 30 seconds. Point out that the Linux part is deliberately short: a server-oriented refresher, not a full course.
+  </aside>
+</section>
+
+<!-- ============================ PART 1 ============================ -->
+<section class="dark part" data-photo="handshake.jpg">
+  <div class="num">Part 1 / 4</div>
+  <h2>DevOps</h2>
+  <p>Culture, principles and benefits. Why an entire industry changed the way it delivers software.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Before</span>
+  <h2>The wall between <em>Dev</em> and <em>Ops</em></h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>Developers</h3>
+      <p>Goal: ship features, fast.</p>
+      <p>Measured on change. "It works on my machine."</p>
+    </div>
+    <div class="card teal">
+      <h3>Operations</h3>
+      <p>Goal: keep production stable.</p>
+      <p>Measured on uptime. "No deployments on Fridays."</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>Two teams, two conflicting goals, and a ticket in between. The result: rare, risky releases and sleepless nights.</p>
+  </div>
+  <aside class="notes">
+    Tell the story of a classic failed deployment: the quarterly release, the 40-page installation document, the Ops engineer discovering a missing dependency at 10 pm. Ask the participants whether they have lived through this. The key point: it is not a people problem but an organization and incentives problem.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Definition</span>
+  <h2>DevOps is not a tool, nor a job title</h2>
+  <blockquote>
+    DevOps is a set of practices, tools and a culture that bring development and operations together to deliver more often, faster and more safely.
+  </blockquote>
+  <div class="cols-3 mt">
+    <div class="card"><h3>Culture</h3><p>Shared responsibility from code all the way to production.</p></div>
+    <div class="card"><h3>Practices</h3><p>Continuous integration, infrastructure as code, monitoring.</p></div>
+    <div class="card"><h3>Tools</h3><p>Git, Docker, pipelines, Terraform, Kubernetes, Prometheus.</p></div>
+  </div>
+  <aside class="notes">
+    Stress it: you can buy every tool and change nothing. The order matters: culture, then practices, then tools. This week we learn the tools, but each tool serves a practice.
+  </aside>
+</section>
+
+<section data-side-photo="keyboard.jpg">
+  <span class="eyebrow">Principles</span>
+  <h2>Five pillars: <em>CALMS</em></h2>
+  <dl class="kv">
+    <div><dt>Culture</dt><dd><strong>Collaboration and trust.</strong> Fix the system, not the person. Blameless post-mortems.</dd></div>
+    <div><dt>Automation</dt><dd><strong>Anything repetitive gets scripted.</strong> Build, tests, deployment, infrastructure.</dd></div>
+    <div><dt>Lean</dt><dd><strong>Small batches, continuous flow.</strong> A small change is easy to test, deploy and roll back.</dd></div>
+    <div><dt>Measurement</dt><dd><strong>Measure to decide.</strong> Lead time, failure rate, time to recover.</dd></div>
+    <div><dt>Sharing</dt><dd><strong>Knowledge flows.</strong> Documentation, code reviews, demos.</dd></div>
+  </dl>
+  <aside class="notes">
+    CALMS is the model from Jez Humble and John Willis. Tie it to the week: Automation = days 2 to 4, Measurement = day 5, Sharing = today's pull requests.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The cycle</span>
+  <h2>A loop, not a line</h2>
+  <div class="flow">
+    <div><b>Plan</b>Requirements, tickets</div>
+    <div><b>Code</b>Git, review</div>
+    <div><b>Build</b>Compilation, image</div>
+    <div><b>Test</b>Unit, security</div>
+    <div><b>Release</b>Version, registry</div>
+    <div><b>Deploy</b>Kubernetes, IaC</div>
+    <div><b>Operate</b>Running it</div>
+    <div><b>Monitor</b>Metrics, alerts</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <p>What we observe in production <strong>feeds the next planning round</strong>. The full cycle can take an hour, not a quarter.</p>
+    </div>
+    <div>
+      <p class="small">This week: Code (D1) → Build (D2) → Test and Release (D3) → Deploy (D4) → Monitor (D5).</p>
+    </div>
+  </div>
+  <aside class="notes">
+    The famous "infinity" symbol. Every step will be automated this week. Ask the question: how long does it take today, where you work, between a commit and its release to production?
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Measurable benefits</span>
+  <h2>The four <em>DORA</em> metrics</h2>
+  <div class="cols-4">
+    <div class="card accent"><span class="num">↑</span><h3>Deployment frequency</h3><p>On demand, several times a day for the best teams.</p></div>
+    <div class="card accent"><span class="num">↓</span><h3>Lead time for changes</h3><p>From commit to production: less than a day.</p></div>
+    <div class="card teal"><span class="num">↓</span><h3>Change failure rate</h3><p>Share of deployments that cause an incident.</p></div>
+    <div class="card teal"><span class="num">↓</span><h3>Time to restore</h3><p>How long it takes to get back to normal service after an incident.</p></div>
+  </div>
+  <div class="callout mt">
+    <p>Speed <strong>and</strong> stability improve together: the teams that deploy most often are also the ones that break things the least.</p>
+  </div>
+  <aside class="notes">
+    Source: the annual "State of DevOps" reports from DORA (Google). The counter-intuitive message: speed is not the enemy of stability. Small, frequent changes are less risky than big releases.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Common thread</span>
+  <h2>What you are going to build</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="20" fill="#14213D">
+        <rect x="10" y="90" width="170" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="95" y="135" text-anchor="middle" font-weight="600">Code</text>
+        <text x="95" y="165" text-anchor="middle" font-size="16" fill="#7A8399">Flask + tests</text>
+
+        <rect x="240" y="90" width="170" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="325" y="135" text-anchor="middle" font-weight="600">Gitea</text>
+        <text x="325" y="165" text-anchor="middle" font-size="16" fill="#7A8399">repository + PRs</text>
+
+        <rect x="470" y="90" width="170" height="110" rx="14" fill="#14213D"/>
+        <text x="555" y="135" text-anchor="middle" font-weight="600" fill="#F7F4EE">Pipeline</text>
+        <text x="555" y="165" text-anchor="middle" font-size="16" fill="#C9CFDD">test · build · scan</text>
+
+        <rect x="700" y="90" width="170" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="785" y="135" text-anchor="middle" font-weight="600">Kubernetes</text>
+        <text x="785" y="165" text-anchor="middle" font-size="16" fill="#7A8399">deployment</text>
+
+        <rect x="930" y="90" width="170" height="110" rx="14" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="1015" y="135" text-anchor="middle" font-weight="600" fill="#E8611A">Grafana</text>
+        <text x="1015" y="165" text-anchor="middle" font-size="16" fill="#7A8399">monitoring</text>
+
+        <line x1="182" y1="145" x2="236" y2="145" stroke="#7A8399" stroke-width="2" marker-end="url(#arr)"/>
+        <line x1="412" y1="145" x2="466" y2="145" stroke="#7A8399" stroke-width="2" marker-end="url(#arr)"/>
+        <line x1="642" y1="145" x2="696" y2="145" stroke="#7A8399" stroke-width="2" marker-end="url(#arr)"/>
+        <line x1="872" y1="145" x2="926" y2="145" stroke="#7A8399" stroke-width="2" marker-end="url(#arr)"/>
+
+        <text x="95" y="250" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">DAY 1 · 2</text>
+        <text x="325" y="250" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">DAY 1</text>
+        <text x="555" y="250" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">DAY 3</text>
+        <text x="785" y="250" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">DAY 4</text>
+        <text x="1015" y="250" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">DAY 5</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">A task-management API in Python, with its PostgreSQL database. Deliberately simple: the subject of the course is the pipeline around it, not the application.</p>
+  <aside class="notes">
+    Quickly show the application in the browser if Gitea is already up (formini-tasks repository). Reassure them: no need to be a Python developer, the code is provided and we will only make marginal changes to it.
+  </aside>
+</section>
+
+<!-- ============================ PART 2: LINUX ============================ -->
+<section class="dark part" data-photo="server-room.jpg">
+  <div class="num">Part 2 / 4</div>
+  <h2>Linux essentials</h2>
+  <p>Files, permissions, processes and SSH: the foundation of everything that follows.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Finding your way</span>
+  <h2>The layout of a server</h2>
+  <div class="cols wide-left">
+    <dl class="kv">
+      <div><dt>/etc</dt><dd>System and service configuration (<code>sshd_config</code>, <code>hosts</code>).</dd></div>
+      <div><dt>/var/log</dt><dd>Logs. The first place to look when something breaks.</dd></div>
+      <div><dt>/home</dt><dd>User home directories. <code>~</code> is yours.</dd></div>
+      <div><dt>/opt</dt><dd>Third-party software installed by hand (Gitea, runners…).</dd></div>
+      <div><dt>/var/lib</dt><dd>Service data: Docker, databases.</dd></div>
+      <div><dt>/tmp</dt><dd>Temporary files, cleared on reboot.</dd></div>
+    </dl>
+    <div>
+      <pre data-label="terminal"><code class="language-bash">pwd                 # where am I?
+ls -la /etc/ssh     # list, with details and hidden files
+cd /var/log &amp;&amp; ls
+tail -f syslog      # follow a log live
+less auth.log       # read page by page (q to quit)
+find / -name "*.conf" 2&gt;/dev/null | head
+du -sh /var/lib/docker</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Do the demo live on the trainer VM. Stress tail -f and less: the two commands we will use every day to read logs. Remind them that "everything is a file" on Linux.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Permissions</span>
+  <h2>Who can do what on a file</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="ls -l"><code class="language-text">-rwxr-x---  1 devops  docker   512  deploy.sh
+ │││ │││ │││     │       │
+ │└┴─┴┴┴─┴┴┘     │       └── group
+ │  u   g   o    └── owner
+ └── type (- file, d directory, l link)</code></pre>
+      <table>
+        <tr><th>Letter</th><th>Value</th><th>File</th><th>Directory</th></tr>
+        <tr><td>r</td><td>4</td><td>read</td><td>list</td></tr>
+        <tr><td>w</td><td>2</td><td>modify</td><td>create / delete</td></tr>
+        <tr><td>x</td><td>1</td><td>execute</td><td>traverse</td></tr>
+      </table>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash">chmod u+x deploy.sh      # make executable
+chmod 750 deploy.sh      # rwx r-x ---
+chmod 600 ~/.ssh/id_ed25519   # private key: me only
+chown devops:docker deploy.sh
+sudo usermod -aG docker devops  # add to a group
+id devops                # check its groups</code></pre>
+      <div class="callout warn">
+        <p><strong>Classic mistake:</strong> a private SSH key readable by everyone is rejected by the SSH client. <code>chmod 600</code> is mandatory.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Have them work out 750 and 644 out loud. Show the "UNPROTECTED PRIVATE KEY FILE" error live if possible: it is the number one failure in the SSH lab.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Processes and services</span>
+  <h2>What is running, and how to control it</h2>
+  <div class="cols">
+    <div>
+      <h3>Processes</h3>
+      <pre data-label="terminal"><code class="language-bash">ps aux | grep gitea     # find a process
+top                     # live load (q to quit)
+htop                    # the readable version
+kill -15 1234           # ask it to stop
+kill -9 1234            # force it (last resort)
+ss -tlnp                # listening ports</code></pre>
+    </div>
+    <div>
+      <h3>Services (systemd)</h3>
+      <pre data-label="terminal"><code class="language-bash">systemctl status docker
+sudo systemctl restart ssh
+sudo systemctl enable --now docker  # start now + at boot
+journalctl -u docker -f             # service logs
+journalctl --since "10 min ago"</code></pre>
+    </div>
+  </div>
+  <p class="small mt">Reflex to build: a service is not responding → <code>systemctl status</code>, then <code>journalctl -u</code>, then <code>ss -tlnp</code> to check the port.</p>
+  <aside class="notes">
+    Demo: stop Docker, observe the error, restart it, read journalctl. This three-command diagnostic reflex will serve all week long.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">SSH</span>
+  <h2>Accessing a server <em>without a password</em></h2>
+  <div class="cols wide-right">
+    <div>
+      <p>A key pair: the <strong>private</strong> key stays on your workstation, the <strong>public</strong> key is copied to the server in <code>~/.ssh/authorized_keys</code>.</p>
+      <ul>
+        <li>No password to remember or to guess.</li>
+        <li>Revocable: delete one line.</li>
+        <li>Essential for automation: Ansible, pipelines, Git.</li>
+      </ul>
+    </div>
+    <div>
+      <pre data-label="on the workstation"><code class="language-bash"># 1. generate the key pair
+ssh-keygen -t ed25519 -C "prenom@formini"
+
+# 2. send the public key to the server
+ssh-copy-id devops@192.168.10.21
+
+# 3. connect
+ssh devops@192.168.10.21
+
+# 4. make it simpler: ~/.ssh/config
+Host vm
+  HostName 192.168.10.21
+  User devops
+  IdentityFile ~/.ssh/id_ed25519</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Draw it on the board: workstation → server, private / public key, padlock / key. Explain that once the key is in place, we disable password authentication on the server side. That will be the lab.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Guided lab · 10:45 – 12:00</span>
+  <h2>A Linux server reachable over SSH</h2>
+  <div class="cols wide-left">
+    <ol class="steps">
+      <li><strong>Create the working user</strong> <code>devops</code> on your VM, with sudo rights.</li>
+      <li><strong>Generate a key</strong> on the Formini workstation, copy it with <code>ssh-copy-id</code>.</li>
+      <li><strong>Harden the server</strong>: disable password and root login in <code>sshd_config</code>.</li>
+      <li><strong>Verify</strong> from a second window before closing the first one.</li>
+      <li><strong>Authorize a colleague</strong>: add their public key on your VM, and vice versa.</li>
+    </ol>
+    <div>
+      <div class="callout teal">
+        <p><strong>Lab sheet:</strong> <code>ateliers/jour1-linux-git/README.md</code></p>
+      </div>
+      <div class="callout warn">
+        <p>Always keep one session open while you change the SSH configuration. If you lock yourself out, the Formini console remains your emergency exit.</p>
+      </div>
+      <p class="small">Bonus: install <code>fail2ban</code>, change the listening port, read the login attempts in <code>/var/log/auth.log</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk around the room. Frequent failures: permissions on .ssh (700) and authorized_keys (600), forgetting "systemctl restart ssh", typo in sshd_config (test with sshd -t before restarting). The fastest ones do the bonus.
+  </aside>
+</section>
+
+<!-- ============================ PART 3: GIT ============================ -->
+<section class="dark part" data-photo="tree-branches.jpg">
+  <div class="num">Part 3 / 4</div>
+  <h2>Git</h2>
+  <p>Commits, branches, merges and conflicts. The project's memory and the team's common language.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Mental model</span>
+  <h2>Three areas, one history</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 260" xmlns="http://www.w3.org/2000/svg">
+      <g font-size="20" fill="#14213D">
+        <rect x="20" y="40" width="300" height="150" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="170" y="90" text-anchor="middle" font-weight="600">Working directory</text>
+        <text x="170" y="122" text-anchor="middle" font-size="16" fill="#7A8399">your files, edited freely</text>
+
+        <rect x="410" y="40" width="300" height="150" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="560" y="90" text-anchor="middle" font-weight="600">Index (staging)</text>
+        <text x="560" y="122" text-anchor="middle" font-size="16" fill="#7A8399">what the next commit will contain</text>
+
+        <rect x="800" y="40" width="300" height="150" rx="14" fill="#14213D"/>
+        <text x="950" y="90" text-anchor="middle" font-weight="600" fill="#F7F4EE">Repository (.git)</text>
+        <text x="950" y="122" text-anchor="middle" font-size="16" fill="#C9CFDD">immutable history of commits</text>
+
+        <line x1="322" y1="115" x2="406" y2="115" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arr2)"/>
+        <text x="364" y="100" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">git add</text>
+        <line x1="712" y1="115" x2="796" y2="115" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arr2)"/>
+        <text x="754" y="100" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">git commit</text>
+        <path d="M950 192 Q950 240 560 240 Q170 240 170 192" fill="none" stroke="#7A8399" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arr2)"/>
+        <text x="560" y="232" text-anchor="middle" font-size="15" fill="#7A8399" font-family="JetBrains Mono, monospace">git checkout / restore</text>
+      </g>
+      <defs><marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#E8611A"/></marker></defs>
+    </svg>
+  </div>
+  <p>A commit is a <strong>complete snapshot</strong> of the project, identified by a hash (SHA) and linked to its parent. Nothing is ever overwritten: we add snapshots.</p>
+  <aside class="notes">
+    The three-area model explains 90% of the confusion. Staging lets you compose a clean commit out of messy work. Show git status between each step.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Everyday commands</span>
+  <h2>A first repository, a first commit</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash">git config --global user.name  "Amina Ben Salah"
+git config --global user.email "amina@formini.tn"
+git config --global init.defaultBranch main
+
+mkdir formini-tasks &amp;&amp; cd formini-tasks
+git init
+echo "# Formini Tasks" &gt; README.md
+git status                 # untracked file
+git add README.md
+git commit -m "docs: add the README"
+git log --oneline --graph</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>status</dt><dd>The state of the three areas. Type it constantly.</dd></div>
+        <div><dt>diff</dt><dd>What changed. <code>--staged</code> for the index.</dd></div>
+        <div><dt>log</dt><dd>The history. <code>--oneline --graph --all</code> for the big picture.</dd></div>
+        <div><dt>restore</dt><dd>Undo an uncommitted change.</dd></div>
+        <div><dt>.gitignore</dt><dd>What Git must never track: secrets, <code>.env</code>, binaries.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Live demo. Make a second commit, show git diff before and after add. Show a .gitignore with .env in it: we will come back to it on day 3 with secrets.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Branches</span>
+  <h2>Working in parallel <em>without getting in each other's way</em></h2>
+  <div class="cols wide-left">
+    <div class="diagram">
+      <svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg">
+        <g stroke-width="3" fill="none">
+          <line x1="40" y1="150" x2="600" y2="150" stroke="#14213D"/>
+          <path d="M200 150 C 240 150 240 70 280 70 L 440 70 C 480 70 480 150 520 150" stroke="#E8611A"/>
+        </g>
+        <g fill="#14213D">
+          <circle cx="80" cy="150" r="11"/><circle cx="200" cy="150" r="11"/><circle cx="360" cy="150" r="11"/><circle cx="520" cy="150" r="11"/>
+        </g>
+        <g fill="#E8611A">
+          <circle cx="280" cy="70" r="11"/><circle cx="360" cy="70" r="11"/><circle cx="440" cy="70" r="11"/>
+        </g>
+        <g font-family="JetBrains Mono, monospace" font-size="15">
+          <text x="40" y="195" fill="#14213D">main</text>
+          <text x="280" y="42" fill="#E8611A">feature/login</text>
+          <text x="500" y="195" fill="#14213D">merge</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash">git switch -c feature/login   # create + switch
+git branch                    # list
+# ... commits ...
+git switch main
+git merge feature/login
+git branch -d feature/login   # clean up</code></pre>
+      <p class="small">A branch is just a <strong>pointer</strong> to a commit. Creating one costs nothing. One per task, short-lived.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Metaphor: a branch is a sticky note stuck on a commit. Draw on the board how the pointer moves with each commit. Naming convention: feature/, fix/, chore/.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Merges</span>
+  <h2>Three ways to bring two branches together</h2>
+  <div class="cols-3">
+    <div class="card">
+      <h3>Fast-forward</h3>
+      <p><code>main</code> has not moved: Git simply advances the pointer. Linear history, no merge commit.</p>
+    </div>
+    <div class="card accent">
+      <h3>Merge commit</h3>
+      <p>Both branches have moved on: Git creates a commit with two parents. Faithful to what really happened, but the graph gets more complex.</p>
+    </div>
+    <div class="card teal">
+      <h3>Rebase</h3>
+      <p>Replays your commits <em>on top of</em> <code>main</code>. Clean, linear history. Never on a shared branch.</p>
+    </div>
+  </div>
+  <pre data-label="terminal" class="mt"><code class="language-bash">git switch feature/login &amp;&amp; git rebase main     # bring my branch up to date cleanly
+git switch main &amp;&amp; git merge --no-ff feature/login   # force a merge commit (trace of the PR)</code></pre>
+  <aside class="notes">
+    Golden rule to write on the board: rebase your local branches, merge into main. Never rewrite the history of a branch that someone else has already pulled.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Conflicts</span>
+  <h2>When two people change <em>the same line</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="app.py (in conflict)"><code class="language-python">def greet():
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+    return "Bonjour Formini"
+=======
+    return "Salut l'équipe"
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature/greeting
+</code></pre>
+      <p class="small">Between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> and <code>=======</code>: your version. Between <code>=======</code> and <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>: the merged branch's version.</p>
+    </div>
+    <div>
+      <ol class="steps">
+        <li><strong>Read</strong> <code>git status</code>: the list of conflicting files.</li>
+        <li><strong>Edit</strong> the file, keep the right version (or a combination), remove the markers.</li>
+        <li><strong>Mark as resolved</strong> with <code>git add app.py</code>.</li>
+        <li><strong>Finish</strong>: <code>git commit</code> (merge) or <code>git rebase --continue</code>.</li>
+      </ol>
+      <p class="small">Lost? <code>git merge --abort</code> puts everything back as it was.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    A conflict is not an error: it is Git asking for a human decision. Show the resolution in VS Code ("Accept current / incoming / both" buttons). The afternoon lab triggers one on purpose.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Remote repository</span>
+  <h2>Syncing with Gitea</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># link the local repository to the server
+git remote add origin \
+  http://gitea.formini.local:3000/equipe-a/formini-tasks.git
+git push -u origin main
+
+# fetch the others' work
+git fetch            # downloads without touching my files
+git pull --rebase    # fetch + rebase my branch
+
+# clone an existing project
+git clone http://gitea.formini.local:3000/equipe-a/formini-tasks.git</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>origin</dt><dd>Default name of the remote repository. There can be several.</dd></div>
+        <div><dt>push</dt><dd>Sends my commits. Rejected if the remote has moved on: <code>pull</code> first.</dd></div>
+        <div><dt>fetch</dt><dd>Downloads the remote state into <code>origin/main</code> without merging anything.</dd></div>
+        <div><dt>pull</dt><dd><code>fetch</code> + <code>merge</code> (or <code>rebase</code>).</dd></div>
+      </dl>
+      <p class="small">Gitea is a lightweight, self-hosted Git forge, compatible with GitHub workflows. It will also serve as the image registry (D2) and the CI engine (D3).</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the Gitea interface: creating an "equipe-a" organization, a repository, the clone button. Explain why we use Gitea rather than GitHub: everything runs locally, on the Formini machines, and we control every piece of it.
+  </aside>
+</section>
+
+<!-- ============================ PART 4: GITEA / TEAM ============================ -->
+<section class="dark part" data-photo="lecture-hall.jpg">
+  <div class="num">Part 4 / 4</div>
+  <h2>Teamwork on Gitea</h2>
+  <p>Pull requests, code review and conventions: how a team keeps its main branch healthy at all times.</p>
+</section>
+
+<section>
+  <span class="eyebrow">The workflow</span>
+  <h2>One branch, one pull request, one review</h2>
+  <div class="flow">
+    <div><b>1 · Ticket</b>A clear, small task</div>
+    <div><b>2 · Branch</b><code>feature/…</code> from <code>main</code></div>
+    <div><b>3 · Commits</b>Small, well named, pushed</div>
+    <div class="on"><b>4 · Pull request</b>Description, context, screenshots</div>
+    <div><b>5 · Review</b>A colleague reads, comments, approves</div>
+    <div><b>6 · Merge</b>Into <code>main</code>, branch deleted</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Why go through a PR</h3>
+      <ul>
+        <li>Four eyes are better than two: fewer bugs, more sharing.</li>
+        <li>It is the anchor point for CI: tests run <em>before</em> the merge.</li>
+        <li>A readable trace: why this change, discussed by whom.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Protecting <code>main</code></h3>
+      <ul>
+        <li>No direct pushes.</li>
+        <li>At least one approval.</li>
+        <li>Green CI status required (day 3).</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo in Gitea: Settings → Branches → protection for main. Then a complete PR live, with a volunteer participant as reviewer.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Code review</span>
+  <h2>Reviewing to <em>help</em>, not to judge</h2>
+  <div class="cols">
+    <div>
+      <h3>A good pull request</h3>
+      <ul>
+        <li>Small: under 300 lines, a single intention.</li>
+        <li>A title that says <em>what</em>, a description that says <em>why</em>.</li>
+        <li>How to test it, and what is not covered.</li>
+        <li>The author has re-read their own diff before requesting review.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>A good review</h3>
+      <ul>
+        <li>Same day: a PR that waits ages badly.</li>
+        <li>Questions rather than orders: "What if we renamed…?"</li>
+        <li>Distinguish blocking / suggestion / detail (<em>nit</em>).</li>
+        <li>Approve explicitly when it is good.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>The reviewer first seeks to <strong>understand</strong>, then to check: readability, tests, security, side effects. Style is the linter's job, not a human's.</p>
+  </div>
+  <aside class="notes">
+    Share an anecdote about a helpful review or a toxic one. Stress the written tone: without intonation, a curt remark hurts. Review comments in Gitea can be attached to a specific line.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Conventions</span>
+  <h2>Commit messages you can actually <em>read</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="conventional commits"><code class="language-text">&lt;type&gt;(&lt;scope&gt;): &lt;summary in the imperative&gt;
+
+feat(api): add task deletion
+fix(db): fix connection timeout
+docs: clarify prerequisites in the README
+test(api): cover the missing-task case
+chore(ci): update the base image
+refactor(models): extract validation</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>feat</dt><dd>New user-visible feature.</dd></div>
+        <div><dt>fix</dt><dd>Bug fix.</dd></div>
+        <div><dt>docs / test</dt><dd>Documentation, tests only.</dd></div>
+        <div><dt>chore</dt><dd>Maintenance, tooling, dependencies.</dd></div>
+        <div><dt>refactor</dt><dd>Restructuring with no change in behavior.</dd></div>
+      </dl>
+      <p class="small">The summary fits in 50 characters; the body, if there is one, explains the <em>why</em>. These conventions make it possible to generate a changelog automatically.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Show an unreadable git log ("fix", "wip", "it works") next to a conventional one. The team picks a convention and sticks to it; which one does not matter, consistency is what counts.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Self-paced challenge · 14:00 – 15:30 · teams of three</span>
+  <h2>Three branches, one clean merge</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Initialize</strong> the <code>formini-tasks</code> repository in the team's Gitea organization, protect <code>main</code>.</li>
+        <li><strong>One branch each:</strong> an API route, a test, the README.</li>
+        <li><strong>Pull request + review:</strong> review someone else's PR, request a change, approve.</li>
+        <li><strong>Trigger a conflict</strong> on the same line of the README, resolve it with a rebase, merge.</li>
+        <li><strong>Deliver:</strong> three contributions in <code>main</code>, a readable history, no dead branches.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Lab sheet:</strong> <code>ateliers/jour1-linux-git/README.md</code>, part 2</p></div>
+      <h3>Success criteria</h3>
+      <ul class="tight">
+        <li>Three merged PRs with at least one comment each.</li>
+        <li>A readable, conventional <code>git log --oneline --graph</code>.</li>
+        <li>One conflict resolved with no lost content.</li>
+      </ul>
+      <p class="small mt">Bonus: tag <code>v0.1.0</code>, a <code>CODEOWNERS</code> file, a PR template in <code>.gitea/</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Form the teams now (they stay the same all week for the final project). Visit each team at the moment of the conflict: that is when the questions come. Around 15:15, ask one team to show its graph on the projector.
+  </aside>
+</section>
+
+<!-- ============================ WRAP-UP ============================ -->
+<section>
+  <span class="eyebrow">Wrap-up · 15:30 – 16:00</span>
+  <h2>What to remember from day 1</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <span class="num">1</span>
+      <h3>DevOps is a culture</h3>
+      <p>Shared responsibility, small batches, automation, measurement. Tools come afterwards.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">2</span>
+      <h3>Linux and passwordless SSH</h3>
+      <p>Permissions, services, logs. One key per person, revocable, the basis of all automation.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">3</span>
+      <h3>Git as a team</h3>
+      <p>One branch per task, one PR, one review, one merge. Conflicts get resolved, calmly.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p><strong>Tomorrow:</strong> we package Formini Tasks and its database into Docker containers, and publish the image to the Gitea registry. Remember to leave your VM switched on.</p>
+  </div>
+  <aside class="notes">
+    Quick round of the room: one thing learned, one thing still unclear. Note the unclear points so you can revisit them tomorrow morning. Remind them not to shut down the VMs: Gitea must stay reachable.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Questions &amp; answers</div>
+  <h2>Thank you.</h2>
+  <p>Lab sheets, scripts and code: <code>formation-devops</code> repository on Gitea.<br>See you tomorrow at 09:00 for Docker.</p>
+  <p class="credits">Photos — Wikimedia Commons · cover-team : DERDAKI ILIAS (CC BY-SA 4.0) · library : Michael D Beckwith (CC BY 3.0) · handshake : rawpixel.com (CC0) · keyboard : Colin (CC BY-SA 4.0) · server-room : Hugovanmeijeren (CC BY-SA 3.0) · tree-branches : Yitzilitt (CC BY-SA 4.0) · lecture-hall : Stephany5757 (CC BY-SA 4.0)</p>
+</section>
+
+</div>
+</div>
+<script src="../../assets/vendor/reveal/reveal.js"></script>
+<script src="../../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../../assets/deck.js"></script>
+</body>
+</html>

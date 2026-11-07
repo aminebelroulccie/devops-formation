@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jour 3 — Pipelines CI/CD avec Gitea Actions · Formini</title>
+  <link rel="icon" href="../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../assets/theme.css">
+</head>
+<body data-deck="Formation DevOps · Jour 3 · CI/CD">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COUVERTURE ============================ -->
+<section class="dark cover" data-photo="assembly-line.jpg">
+  <img class="logo plain" src="../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">03<small>Jour 3 / 5</small></div>
+  <h1>Pipelines CI/CD <em>avec</em> Gitea Actions</h1>
+  <p class="meta"><span>Mardi 10 novembre 2026</span><span>09:00 – 16:00</span><span>Formation DevOps · 5 jours</span></p>
+  <aside class="notes">
+    Accueil. Avant de commencer, vérifier à voix haute que chacun a bien son image Docker d'hier construite localement et son dépôt formini-tasks à jour sur Gitea. Annoncer l'objectif de la journée en une phrase : ce soir, chaque commit poussé déclenche tout seul les tests, la construction de l'image et sa publication dans le registre. Rappeler les horaires des pauses.
+  </aside>
+</section>
+
+<!-- ============================ SEMAINE ============================ -->
+<section>
+  <span class="eyebrow">La semaine en un coup d'œil</span>
+  <h2>Hier on empaquetait, aujourd'hui on <em>automatise</em></h2>
+  <div class="flow">
+    <div><b>Jour 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div><b>Jour 2</b>Docker &amp; Compose</div>
+    <div class="on"><b>Jour 3</b>CI/CD avec Gitea Actions</div>
+    <div><b>Jour 4</b>Terraform, Ansible, Kubernetes</div>
+    <div><b>Jour 5</b>Prometheus, Grafana, projet final</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Ce que vous avez déjà</h3>
+      <p>Un dépôt Git partagé avec des pull requests, un <code>Dockerfile</code> et une image de Formini Tasks publiée à la main dans le registre Gitea.</p>
+    </div>
+    <div>
+      <h3>Ce que vous aurez ce soir</h3>
+      <p>Un pipeline qui, à chaque commit, lint, teste, construit l'image, l'analyse et la publie. Sans que personne ne tape une commande.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Faire le lien avec hier : la commande docker build que vous avez tapée dix fois, un pipeline va la taper à votre place, de la même façon à chaque fois. Insister sur la continuité : le pipeline d'aujourd'hui produira l'image que Kubernetes déploiera demain.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="library.jpg">
+  <span class="eyebrow">Programme du jour</span>
+  <h2>Automatiser la construction, les tests et la livraison</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>Intégration et livraison continues</strong> : concepts, étapes d'un pipeline · <strong>Gitea Actions</strong> et act_runner</span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Pause-café</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Atelier guidé</strong> : un premier workflow qui lint et teste à chaque commit</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Pause déjeuner</span></li>
+    <li><span class="t">13:00 – 14:00</span><span><strong>Secrets et sécurité</strong> : scan d'image, protection de branche · <strong>Stratégies de livraison</strong></span></li>
+    <li><span class="t">14:00 – 15:30</span><span><strong>Défi en équipe</strong> : build, scan et publication automatiques de l'image</span></li>
+    <li><span class="t">15:30 – 16:00</span><span>Bilan de la journée et questions-réponses</span></li>
+  </ul>
+  <aside class="notes">
+    Parcourir l'agenda rapidement. Préciser que la matinée est volontairement concentrée sur un pipeline minimal qui marche, et que l'après-midi l'enrichit. Un pipeline simple et vert vaut mieux qu'un pipeline ambitieux et rouge.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 1 ============================ -->
+<section class="dark part" data-photo="conveyor.jpg">
+  <div class="num">Partie 1 / 4</div>
+  <h2>Intégration et livraison continues</h2>
+  <p>Pourquoi vérifier chaque commit, et ce qu'un pipeline doit faire entre le code et la production.</p>
+  <aside class="notes">Transition d'une phrase : avant d'ouvrir un fichier YAML, on se met d'accord sur ce qu'un pipeline doit faire et pourquoi. Dix minutes de concepts, puis on passe à l'outil.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Avant</span>
+  <h2>L'enfer de l'intégration</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>Chacun dans sa branche, pendant des semaines</h3>
+      <p>Le jour de la fusion, rien ne compile. Les tests ? On les lancera après. Le build de release est un rituel de deux jours, avec un seul expert capable de le faire.</p>
+    </div>
+    <div class="card teal">
+      <h3>Le symptôme</h3>
+      <p>« Ça marchait sur ma machine. » Personne ne sait quelle version est en production ni comment elle a été construite.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>Plus on attend pour intégrer, plus la douleur est grande. La seule parade : intégrer <strong>tout le temps</strong>, et laisser une machine vérifier à chaque fois.</p>
+  </div>
+  <aside class="notes">
+    Raconter le vendredi de release : la branche de six semaines, les 40 conflits, le build qui ne passe que sur le poste de Karim. Demander qui a connu un build que seule une personne savait lancer. Transition : la CI, c'est rendre ce rituel ennuyeux, répétable et instantané.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Définitions</span>
+  <h2>CI, CD et… <em>CD</em></h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <h3>Intégration continue</h3>
+      <p>Chaque commit est fusionné tôt et <strong>vérifié automatiquement</strong> : compilation, lint, tests. On sait en minutes si l'on a cassé quelque chose.</p>
+    </div>
+    <div class="card">
+      <h3>Livraison continue</h3>
+      <p>Chaque version validée est <strong>prête à être déployée</strong> : image construite, taguée, publiée. Le déploiement reste un clic humain.</p>
+    </div>
+    <div class="card teal">
+      <h3>Déploiement continu</h3>
+      <p>Le clic disparaît : ce qui passe le pipeline <strong>part en production</strong> tout seul. Exige des tests et une supervision solides.</p>
+    </div>
+  </div>
+  <p class="small mt">Aujourd'hui : intégration continue le matin, livraison continue l'après-midi. Le déploiement continu arrive demain avec Kubernetes.</p>
+  <aside class="notes">
+    Les deux « CD » sont souvent confondus. La différence tient en une question : qui appuie sur le bouton ? Livraison continue = l'humain décide quand ; déploiement continu = le pipeline décide. Rares sont les équipes qui ont besoin du déploiement continu dès le départ.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Pourquoi</span>
+  <h2>Deux idées simples</h2>
+  <div class="cols">
+    <div>
+      <span class="big accent">10 min</span>
+      <h3>Un retour rapide</h3>
+      <p>Un bug trouvé dix minutes après le commit se corrige en dix minutes : le contexte est encore dans la tête. Le même bug trouvé trois semaines plus tard coûte une journée.</p>
+    </div>
+    <div>
+      <span class="big">1</span>
+      <h3>Petits lots</h3>
+      <p>Un commit de vingt lignes qui casse le pipeline se diagnostique d'un coup d'œil. Une fusion de deux mille lignes, non. La CI pousse naturellement vers des changements petits et fréquents.</p>
+    </div>
+  </div>
+  <div class="callout teal">
+    <p>Règle d'équipe : un pipeline rouge sur <code>main</code> est la <strong>priorité absolue</strong>. On ne pousse rien d'autre tant qu'il n'est pas vert.</p>
+  </div>
+  <aside class="notes">
+    Dix minutes est la cible classique pour la durée totale d'un pipeline de CI. Au-delà, les gens arrêtent d'attendre et empilent les commits. Relier aux métriques DORA du jour 1 : délai de livraison et taux d'échec dépendent directement de la vitesse du retour.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Les étapes</span>
+  <h2>L'anatomie d'un pipeline</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 250" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="19" fill="#14213D">
+        <rect x="10" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="90" y="102" text-anchor="middle" font-weight="600">Lint</text>
+        <text x="90" y="130" text-anchor="middle" font-size="15" fill="#7A8399">style, erreurs</text>
+
+        <rect x="200" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="280" y="102" text-anchor="middle" font-weight="600">Tests</text>
+        <text x="280" y="130" text-anchor="middle" font-size="15" fill="#7A8399">pytest</text>
+
+        <rect x="390" y="60" width="160" height="100" rx="14" fill="#14213D"/>
+        <text x="470" y="102" text-anchor="middle" font-weight="600" fill="#F7F4EE">Build</text>
+        <text x="470" y="130" text-anchor="middle" font-size="15" fill="#C9CFDD">image Docker</text>
+
+        <rect x="580" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="660" y="102" text-anchor="middle" font-weight="600">Scan</text>
+        <text x="660" y="130" text-anchor="middle" font-size="15" fill="#7A8399">vulnérabilités</text>
+
+        <rect x="770" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="850" y="102" text-anchor="middle" font-weight="600">Publication</text>
+        <text x="850" y="130" text-anchor="middle" font-size="15" fill="#7A8399">registre Gitea</text>
+
+        <rect x="960" y="60" width="150" height="100" rx="14" fill="none" stroke="#E8611A" stroke-width="2" stroke-dasharray="7 5"/>
+        <text x="1035" y="102" text-anchor="middle" font-weight="600" fill="#E8611A">Déploiement</text>
+        <text x="1035" y="130" text-anchor="middle" font-size="15" fill="#7A8399">jour 4</text>
+
+        <line x1="172" y1="110" x2="196" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="362" y1="110" x2="386" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="552" y1="110" x2="576" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="742" y1="110" x2="766" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="932" y1="110" x2="956" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+
+        <path d="M10 200 L740 200" stroke="#E8611A" stroke-width="2"/>
+        <text x="375" y="232" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">INTÉGRATION CONTINUE · À CHAQUE COMMIT ET PULL REQUEST</text>
+        <path d="M770 200 L930 200" stroke="#1F7A8C" stroke-width="2"/>
+        <text x="850" y="232" text-anchor="middle" font-size="15" fill="#1F7A8C" font-family="JetBrains Mono, monospace">LIVRAISON · SUR MAIN</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">Chaque étape ne s'exécute que si la précédente a réussi. Les plus rapides d'abord : un lint en dix secondes évite d'attendre un build de trois minutes pour rien.</p>
+  <aside class="notes">
+    Parcourir les six étapes de gauche à droite. Souligner l'ordre : les vérifications les moins chères en premier. La publication ne se fait que sur main, pas sur les pull requests, pour ne pas remplir le registre d'images de brouillon. Le déploiement en pointillé est pour demain.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Ce que vérifie chaque étape</span>
+  <h2>Des questions, pas des outils</h2>
+  <table>
+    <tr><th>Étape</th><th>La question</th><th>Outil chez nous</th><th>Durée visée</th></tr>
+    <tr><td>Lint</td><td>Le code respecte-t-il les règles de l'équipe ?</td><td><code>flake8</code></td><td>10 s</td></tr>
+    <tr><td>Tests</td><td>Le comportement attendu est-il préservé ?</td><td><code>pytest</code></td><td>1 min</td></tr>
+    <tr><td>Build</td><td>Peut-on produire un artefact identique à chaque fois ?</td><td><code>docker build</code></td><td>2 min</td></tr>
+    <tr><td>Scan</td><td>L'artefact embarque-t-il des failles connues ?</td><td><code>trivy</code></td><td>30 s</td></tr>
+    <tr><td>Publication</td><td>L'artefact est-il retrouvable, versionné, immuable ?</td><td>registre Gitea</td><td>30 s</td></tr>
+  </table>
+  <p class="small">Les outils changent d'un projet à l'autre, les questions restent les mêmes. Un pipeline Java remplace flake8 par Checkstyle et pytest par JUnit ; la structure ne bouge pas.</p>
+  <aside class="notes">
+    Le but de cette diapo est de détacher la notion d'étape des outils. Demander à la salle : dans vos projets, qui répond à la question « est-ce que l'artefact est retrouvable » ? Souvent personne. Noter les durées : elles donnent la cible des dix minutes.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 2 ============================ -->
+<section class="dark part" data-photo="keyboard.jpg">
+  <div class="num">Partie 2 / 4</div>
+  <h2>Gitea Actions</h2>
+  <p>Un fichier YAML dans le dépôt, un runner qui écoute : le moteur de CI/CD intégré à notre forge.</p>
+  <aside class="notes">On entre dans l'outil. Prévenir : la syntaxe est celle de GitHub Actions, donc tout ce qu'ils ont pu voir ailleurs s'applique. Les diapos qui suivent préparent directement l'atelier de 10:45.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Anatomie d'un workflow</span>
+  <h2>Un fichier YAML dans le dépôt</h2>
+  <div class="cols">
+    <div>
+      <pre data-label=".gitea/workflows/ci.yml" class="xs"><code class="language-yaml">name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dépendances
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q -r requirements-dev.txt
+      - name: Lint
+        run: .venv/bin/flake8 .
+      - name: Tests
+        run: .venv/bin/pytest -q</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>on</dt><dd><strong>Quand</strong> : push, pull request, tag, horaire.</dd></div>
+        <div><dt>jobs</dt><dd><strong>Quoi</strong> : des unités indépendantes, en parallèle par défaut.</dd></div>
+        <div><dt>runs-on</dt><dd><strong>Où</strong> : l'étiquette du runner qui prendra le job.</dd></div>
+        <div><dt>steps</dt><dd><strong>Comment</strong> : commandes ou actions, dans l'ordre.</dd></div>
+      </dl>
+      <p class="small mt">Fichier dans <code>.gitea/workflows/</code>. Même syntaxe que GitHub Actions : les exemples se transposent tels quels.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Lire le fichier de haut en bas avec la salle. Quatre questions : quand, quoi, où, comment. Insister sur le fait que le workflow est versionné avec le code : il évolue dans les mêmes pull requests, et il est relu comme le reste.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Le vocabulaire</span>
+  <h2>Les mots-clés qui reviennent <em>partout</em></h2>
+  <div class="cols">
+    <dl class="kv">
+      <div><dt>uses</dt><dd>Appelle une <strong>action</strong> réutilisable : <code>actions/checkout@v4</code> récupère le code.</dd></div>
+      <div><dt>run</dt><dd>Exécute une commande shell. Multi-ligne avec <code>|</code>.</dd></div>
+      <div><dt>needs</dt><dd>Ordonne les jobs : <code>build</code> attend que <code>test</code> soit vert.</dd></div>
+      <div><dt>if</dt><dd>Condition : <code>gitea.event_name == 'push'</code>.</dd></div>
+    </dl>
+    <dl class="kv">
+      <div><dt>env</dt><dd>Variables d'environnement, au niveau workflow, job ou step.</dd></div>
+      <div><dt>secrets</dt><dd>Valeurs chiffrées côté Gitea : <code>${{ secrets.REGISTRY_TOKEN }}</code>.</dd></div>
+      <div><dt>matrix</dt><dd>Exécute le même job avec plusieurs valeurs : versions de Python, systèmes.</dd></div>
+      <div><dt>artifacts</dt><dd>Fichiers conservés après le job : rapport de tests, binaire.</dd></div>
+    </dl>
+  </div>
+  <div class="callout mt">
+    <p>Le contexte <code>${{ gitea.sha }}</code>, <code>${{ gitea.ref_name }}</code>, <code>${{ gitea.event_name }}</code> décrit l'événement en cours. <code>github.*</code> fonctionne aussi, par compatibilité.</p>
+  </div>
+  <aside class="notes">
+    Ne pas tout détailler : cette diapo sert de référence, on y reviendra pendant l'atelier. Retenir surtout needs, if et secrets, qui seront utilisés cet après-midi. Mentionner que les expressions entre doubles accolades sont évaluées par Gitea avant l'exécution.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Sous le capot</span>
+  <h2>Gitea et act_runner</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 290" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#E8611A"/></marker>
+        <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="18" fill="#14213D">
+        <rect x="10" y="90" width="150" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="85" y="132" text-anchor="middle" font-weight="600">Développeur</text>
+        <text x="85" y="160" text-anchor="middle" font-size="15" fill="#7A8399">git push</text>
+
+        <rect x="240" y="30" width="300" height="225" rx="16" fill="#14213D"/>
+        <text x="390" y="68" text-anchor="middle" font-weight="600" fill="#F7F4EE" font-size="20">Gitea</text>
+        <rect x="262" y="90" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="116" text-anchor="middle" font-size="15" fill="#C9CFDD">lit .gitea/workflows/*.yml</text>
+        <rect x="262" y="142" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="168" text-anchor="middle" font-size="15" fill="#C9CFDD">file d'attente de jobs</text>
+        <rect x="262" y="194" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="220" text-anchor="middle" font-size="15" fill="#C9CFDD">journaux, statuts, artefacts</text>
+
+        <rect x="790" y="30" width="320" height="225" rx="16" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="950" y="68" text-anchor="middle" font-weight="600" font-size="20" fill="#E8611A">act_runner · votre VM</text>
+        <rect x="812" y="90" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="116" text-anchor="middle" font-size="15">étiquette : ubuntu-latest:host</text>
+        <rect x="812" y="142" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="168" text-anchor="middle" font-size="15">exécute les steps, un par un</text>
+        <rect x="812" y="194" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="220" text-anchor="middle" font-size="15">python3 · docker · trivy · node</text>
+
+        <line x1="162" y1="140" x2="236" y2="140" stroke="#7A8399" stroke-width="2" marker-end="url(#arrG)"/>
+        <text x="199" y="128" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">push</text>
+
+        <path d="M788 110 L544 110" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="98" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">« un job pour moi ? »</text>
+        <path d="M544 160 L786 160" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="150" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">job + code + secrets</text>
+        <path d="M788 210 L544 210" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="200" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">logs, succès / échec</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">Le runner <strong>interroge</strong> Gitea, jamais l'inverse : il peut tourner derrière un pare-feu, sans port ouvert. Un seul Gitea, autant de runners que l'on veut.</p>
+  <aside class="notes">
+    Le point à faire passer : Gitea ne fait qu'orchestrer, c'est le runner qui travaille. Le runner tourne sur votre VM, donc quand un job est lent, c'est votre VM qui est lente. Avantage du polling : pas d'ouverture réseau entrante, le runner peut être n'importe où.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">act_runner</span>
+  <h2>Étiquettes : <em>où</em> tourne un job</h2>
+  <div class="cols">
+    <div>
+      <p>Chaque runner annonce des <strong>étiquettes</strong>. Un job demande une étiquette avec <code>runs-on</code>. Gitea les apparie.</p>
+      <table>
+        <tr><th>Étiquette</th><th>Mode</th><th>Le job tourne…</th></tr>
+        <tr><td><code>ubuntu-latest:host</code></td><td>host</td><td>directement sur la VM, avec ses outils</td></tr>
+        <tr><td><code>ubuntu-latest:docker://node:20</code></td><td>docker</td><td>dans un conteneur jetable</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Mode host (notre choix)</h3>
+      <ul class="tight">
+        <li>Docker, Python, trivy déjà là : pas d'installation à chaque job.</li>
+        <li>Rapide, simple à déboguer : on peut rejouer les commandes à la main.</li>
+        <li>Moins isolé : un job peut salir la machine.</li>
+      </ul>
+      <h3 class="mt">Mode docker</h3>
+      <ul class="tight">
+        <li>Environnement propre et reproductible à chaque job.</li>
+        <li>Construire une image depuis un conteneur demande du Docker-dans-Docker.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    En formation, on choisit le mode host pour aller vite et voir ce qui se passe. En production, le mode docker est la norme pour l'isolation. Mentionner qu'une étiquette peut aussi cibler un système (windows, arm) ou une capacité (gpu).
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Enregistrement</span>
+  <h2>Brancher un runner sur Gitea</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="sur la VM (déjà fait par setup/act-runner)"><code class="language-bash"># 1. jeton : Gitea → Administration → Actions → Runners
+# 2. enregistrer le runner avec son étiquette
+act_runner register --no-interactive \
+  --instance http://gitea.formini.local:3000 \
+  --token &lt;JETON&gt; \
+  --name vm-amina \
+  --labels ubuntu-latest:host
+
+# 3. le lancer comme service
+sudo systemctl enable --now act_runner
+journalctl -u act_runner -f</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>instance</dt><dd>L'URL de Gitea, celle que vous utilisez dans le navigateur.</dd></div>
+        <div><dt>token</dt><dd>Jeton d'enregistrement, global, par organisation ou par dépôt.</dd></div>
+        <div><dt>labels</dt><dd>Ce que ce runner sait faire. Doit correspondre à <code>runs-on</code>.</dd></div>
+      </dl>
+      <div class="callout teal">
+        <p>Vérifier : <strong>Dépôt → Paramètres → Actions → Runners</strong>. Un point vert, sinon le job restera « en attente » pour toujours.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Les runners sont déjà enregistrés sur les VM par le script de préparation. Montrer dans l'admin Gitea la liste des runners et leurs étiquettes : c'est le premier endroit où regarder quand un job ne démarre pas. Un job en attente sans runner libre reste en attente indéfiniment.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Lire un run</span>
+  <h2>Où regarder quand c'est rouge</h2>
+  <ol class="steps">
+    <li><strong>L'onglet Actions du dépôt</strong> liste les runs par workflow, avec le commit et la branche qui les ont déclenchés.</li>
+    <li><strong>Le job en échec</strong> est marqué d'une croix. Un clic ouvre les steps ; seul le step fautif est déplié.</li>
+    <li><strong>La dernière ligne du journal</strong> dit presque toujours pourquoi. Remonter de là, pas depuis le début.</li>
+    <li><strong>Rejouer en local</strong> la commande exacte du step sur la VM : même outil, même dossier, même résultat.</li>
+  </ol>
+  <div class="callout">
+    <p>Un job <em>en attente</em> et non <em>en échec</em> n'est pas un bug du code : c'est un runner absent ou une étiquette qui ne correspond pas.</p>
+  </div>
+  <aside class="notes">
+    Montrer un run réel dans l'interface : navigation, dépliage des steps, recherche dans le journal. Faire la distinction entre les trois états : en attente, en cours, terminé. Le piège classique du matin sera le job en attente parce que le runner est tombé.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Atelier guidé · 10:45 – 12:00</span>
+  <h2>Un premier pipeline qui teste chaque commit</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Activer les Actions</strong> sur <code>formini-tasks</code> : Paramètres → Dépôt → Actions.</li>
+        <li><strong>Vérifier le runner</strong> de votre VM : il doit apparaître en ligne dans Paramètres → Actions → Runners.</li>
+        <li><strong>Écrire</strong> <code>.gitea/workflows/ci.yml</code> avec un job <code>test</code> : checkout, venv, flake8, pytest.</li>
+        <li><strong>Pousser</strong> sur une branche, ouvrir une pull request, regarder le run passer au vert.</li>
+        <li><strong>Casser un test</strong> volontairement : la PR affiche une croix rouge. Corriger, repousser, revérifier.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal">
+        <p><strong>Fiche atelier :</strong> <code>ateliers/jour3-cicd/README.md</code>, partie 1</p>
+      </div>
+      <h3>Critères de réussite</h3>
+      <ul class="tight">
+        <li>Un run vert sur la PR, puis sur <code>main</code> après fusion.</li>
+        <li>Un run rouge dont vous savez lire la cause.</li>
+        <li>Moins de deux minutes par run.</li>
+      </ul>
+      <p class="small mt">Bonus : ajouter un step qui publie <code>report.xml</code> comme artefact.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Circuler. Pannes attendues : indentation YAML, runner hors ligne, oubli d'activer les Actions sur le dépôt, flake8 qui râle sur une ligne trop longue. Faire remarquer que la croix rouge apparaît directement dans la PR : le relecteur n'a plus besoin de lancer les tests lui-même.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 3 ============================ -->
+<section class="dark part" data-photo="padlock.jpg">
+  <div class="num">Partie 3 / 4</div>
+  <h2>Secrets et sécurité</h2>
+  <p>Comment un pipeline manipule des mots de passe sans jamais les montrer, et ce qu'il vérifie avant de livrer.</p>
+  <aside class="notes">Reprise après le déjeuner. Demander qui a encore un run rouge non compris : le régler devant tout le monde en deux minutes avant de continuer. Puis annoncer : secrets, scan, protection de branche.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Les secrets</span>
+  <h2>Jamais dans le code. <em>Jamais.</em></h2>
+  <div class="cols">
+    <div>
+      <h3>Ce qui est un secret</h3>
+      <ul class="tight">
+        <li>Jetons d'accès au registre, à l'API, au cloud.</li>
+        <li>Mots de passe de base de données.</li>
+        <li>Clés SSH privées, certificats.</li>
+      </ul>
+      <h3 class="mt">Ce qui arrive sinon</h3>
+      <p>Un secret commité est dans l'historique <strong>pour toujours</strong>, même après suppression. Sur une forge publique, il est exploité en quelques minutes.</p>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>.env</dt><dd>En local seulement, et dans <code>.gitignore</code> dès le premier commit.</dd></div>
+        <div><dt>Gitea</dt><dd>Secrets chiffrés, définis par dépôt ou par organisation, jamais relisibles.</dd></div>
+        <div><dt>Journaux</dt><dd>Gitea masque la valeur par <code>***</code> si elle apparaît dans une sortie.</dd></div>
+        <div><dt>Rotation</dt><dd>Un secret exposé se révoque et se remplace, il ne se « cache » pas.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Histoire vraie à raconter : clés AWS poussées sur GitHub, facture de plusieurs milliers d'euros le lendemain matin, des robots scannent les commits en continu. Insister sur « pour toujours » : git rm ne suffit pas, il faut réécrire l'historique et surtout révoquer le secret.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Secrets dans Gitea</span>
+  <h2>Déclarer, puis utiliser</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="ci.yml · job build"><code class="language-yaml">env:
+  REGISTRY: gitea.formini.local:3000
+
+steps:
+  - name: Connexion au registre
+    run: |
+      echo "${{ secrets.REGISTRY_TOKEN }}" \
+        | docker login $REGISTRY \
+            -u "${{ secrets.REGISTRY_USER }}" \
+            --password-stdin</code></pre>
+    </div>
+    <div>
+      <ol class="steps">
+        <li><strong>Créer un jeton</strong>Profil → Paramètres → Applications, droit <em>package : write</em>.</li>
+        <li><strong>Déclarer les secrets</strong>Dépôt → Paramètres → Actions → Secrets : <code>REGISTRY_USER</code>, <code>REGISTRY_TOKEN</code>.</li>
+        <li><strong>Lire avec <code>${{ secrets.NOM }}</code></strong>La valeur n'apparaît jamais dans l'interface ni les logs.</li>
+      </ol>
+      <p class="small"><code>--password-stdin</code> garde le jeton hors de la liste des processus.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Démo : créer le jeton, le déclarer, lancer un run qui l'affiche avec echo pour montrer les astérisques. Puis supprimer ce step : on ne laisse pas traîner un echo de secret, même masqué. Un secret d'organisation est partagé par tous les dépôts de l'équipe, pratique pour le registre.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Analyse</span>
+  <h2>Trois filets de sécurité</h2>
+  <div class="cols-3">
+    <div class="card">
+      <h3>Qualité du code</h3>
+      <p><code>flake8</code> attrape les erreurs bêtes : variable inutilisée, import manquant, code mort. Dix secondes, zéro faux positif grave.</p>
+    </div>
+    <div class="card accent">
+      <h3>Dépendances</h3>
+      <p><code>pip-audit</code> compare <code>requirements.txt</code> aux bases de vulnérabilités connues. La faille vient rarement de votre code, souvent d'une bibliothèque.</p>
+    </div>
+    <div class="card teal">
+      <h3>Image</h3>
+      <p><code>trivy</code> analyse l'image Docker entière : système de base, paquets, bibliothèques Python. Il bloque le pipeline si une faille critique est corrigeable.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>L'analyse n'est utile que si elle <strong>bloque</strong>. Un rapport que personne ne lit ne protège de rien : <code>--exit-code 1</code> fait du scan une barrière, pas un avis.</p>
+  </div>
+  <aside class="notes">
+    Trois niveaux : le code, les dépendances, l'image. Demander quel niveau est le plus souvent oublié : l'image, parce que l'on ne pense pas à l'OS de base. Le mot-clé est bloquer : le scan doit avoir un pouvoir de veto sur la publication.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Trivy</span>
+  <h2>Scanner une image en pratique</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># vue d'ensemble, lecture humaine
+trivy image gitea.formini.local:3000/equipe-a/formini-tasks:a1b2c3d
+
+# dans le pipeline : ne bloquer que sur du critique corrigeable
+trivy image \
+  --severity CRITICAL \
+  --ignore-unfixed \
+  --exit-code 1 \
+  gitea.formini.local:3000/equipe-a/formini-tasks:a1b2c3d</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>severity</dt><dd>Niveaux retenus : CRITICAL d'abord, HIGH plus tard.</dd></div>
+        <div><dt>ignore-unfixed</dt><dd>Ignore les failles sans correctif disponible.</dd></div>
+        <div><dt>exit-code</dt><dd>Non nul si faille trouvée : le step échoue.</dd></div>
+      </dl>
+      <p class="small">Remède courant : reconstruire sur une image de base à jour.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Démo sur l'image d'hier : montrer le tableau de trivy, le nombre de failles par sévérité, puis la commande bloquante. Expliquer ignore-unfixed : sans elle, le pipeline serait rouge en permanence à cause de failles du système de base sans correctif disponible.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Protection de branche</span>
+  <h2>Le pipeline, gardien de <em>main</em></h2>
+  <div class="cols wide-left">
+    <div class="diagram">
+      <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="16" fill="#14213D">
+          <rect x="10" y="10" width="300" height="280" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+          <text x="30" y="42" font-weight="600" font-size="17">PR #12 · feature/export-csv</text>
+          <line x1="30" y1="56" x2="290" y2="56" stroke="#D9D3C7"/>
+          <circle cx="42" cy="86" r="9" fill="#3A7D44"/><text x="62" y="92">test · réussi</text>
+          <circle cx="42" cy="122" r="9" fill="#3A7D44"/><text x="62" y="128">build · réussi</text>
+          <circle cx="42" cy="158" r="9" fill="#3A7D44"/><text x="62" y="164">1 approbation · Karim</text>
+          <rect x="30" y="200" width="260" height="46" rx="10" fill="#14213D"/>
+          <text x="160" y="229" text-anchor="middle" fill="#F7F4EE" font-weight="600">Fusionner</text>
+          <text x="160" y="276" text-anchor="middle" font-size="13" fill="#7A8399" font-family="JetBrains Mono, monospace">TOUT EST VERT</text>
+
+          <rect x="330" y="10" width="300" height="280" rx="14" fill="none" stroke="#B8322A" stroke-width="2"/>
+          <text x="350" y="42" font-weight="600" font-size="17">PR #13 · fix/timeout</text>
+          <line x1="350" y1="56" x2="610" y2="56" stroke="#D9D3C7"/>
+          <circle cx="362" cy="86" r="9" fill="#B8322A"/><text x="382" y="92">test · échec</text>
+          <circle cx="362" cy="122" r="9" fill="#D9D3C7"/><text x="382" y="128" fill="#7A8399">build · ignoré</text>
+          <circle cx="362" cy="158" r="9" fill="#D9D3C7"/><text x="382" y="164" fill="#7A8399">0 approbation</text>
+          <rect x="350" y="200" width="260" height="46" rx="10" fill="none" stroke="#D9D3C7" stroke-width="2"/>
+          <text x="480" y="229" text-anchor="middle" fill="#7A8399" font-weight="600">Fusion bloquée</text>
+          <text x="480" y="276" text-anchor="middle" font-size="13" fill="#B8322A" font-family="JetBrains Mono, monospace">STATUT REQUIS MANQUANT</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <ol class="steps">
+        <li><strong>Dépôt → Paramètres → Branches</strong>, protéger <code>main</code>.</li>
+        <li><strong>Interdire le push direct</strong>, exiger une approbation.</li>
+        <li><strong>Exiger le statut</strong> <code>test</code> : la fusion attend le pipeline.</li>
+      </ol>
+      <p class="small">Combiné à la revue d'hier : un humain <em>et</em> une machine valident chaque changement.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Montrer les deux PR côte à côte. Le bouton de fusion grisé est la matérialisation de tout le cours : personne ne peut contourner les tests, pas même l'admin. Faire la manipulation en direct dans les paramètres de branche, et noter le nom exact du statut : CI / test (pull_request), d'où le motif CI / test*.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 4 ============================ -->
+<section class="dark part" data-photo="container-ship.jpg">
+  <div class="num">Partie 4 / 4</div>
+  <h2>Stratégies de livraison</h2>
+  <p>Nommer les versions, publier au bon moment, séparer les environnements.</p>
+  <aside class="notes">Dernière partie théorique, courte. Le but est de donner le vocabulaire des étiquettes et des environnements avant le défi, qui demande de publier une image versionnée.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Nommer les images</span>
+  <h2>Une étiquette dit <em>d'où</em> vient l'image</h2>
+  <table>
+    <tr><th>Étiquette</th><th>Exemple</th><th>Produit par</th><th>Sert à</th></tr>
+    <tr><td>SHA court</td><td><code>:a1b2c3d</code></td><td>chaque push sur <code>main</code></td><td>retrouver le commit exact, déployer en test</td></tr>
+    <tr><td>Semver</td><td><code>:v1.4.2</code></td><td>un tag Git <code>v*</code></td><td>versions livrées, changelog, retour arrière</td></tr>
+    <tr><td>latest</td><td><code>:latest</code></td><td>le dernier build de <code>main</code></td><td>confort local. Jamais en production.</td></tr>
+  </table>
+  <div class="cols mt">
+    <div>
+      <h3>Immuable</h3>
+      <p>Une étiquette, une image, pour toujours. On ne « réécrit » jamais <code>v1.4.2</code> : on publie <code>v1.4.3</code>.</p>
+    </div>
+    <div>
+      <h3>Traçable</h3>
+      <p>Du conteneur en production au commit : <code>docker inspect</code> → étiquette → <code>git show a1b2c3d</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Le piège de latest : deux machines qui tirent latest à une heure d'intervalle n'ont pas la même image, et personne ne le sait. Semver : majeur.mineur.correctif, incrémenté selon la nature du changement. Demain, Kubernetes déploiera toujours une étiquette précise.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Publier sur un tag</span>
+  <h2>Un workflow pour les <em>versions</em></h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label=".gitea/workflows/release.yml" class="xs"><code class="language-yaml">name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: gitea.formini.local:3000
+      IMAGE: gitea.formini.local:3000/equipe-a/formini-tasks
+      VERSION: ${{ gitea.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t $IMAGE:$VERSION .
+      - run: trivy image --severity CRITICAL --ignore-unfixed
+             --exit-code 1 $IMAGE:$VERSION
+      - run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login
+             $REGISTRY -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+      - run: docker push $IMAGE:$VERSION</code></pre>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash">git tag -a v1.0.0 -m "Première version"
+git push origin v1.0.0</code></pre>
+      <dl class="kv">
+        <div><dt>tags: v*</dt><dd>Ne se déclenche que sur un tag qui commence par <code>v</code>.</dd></div>
+        <div><dt>ref_name</dt><dd>Le nom du tag devient l'étiquette de l'image.</dd></div>
+      </dl>
+      <p class="small">Le tag est posé par un humain : c'est la décision de livrer.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Un workflow par intention : ci.yml vérifie, release.yml livre. Montrer qu'un tag est un commit nommé, immuable. Le geste de livrer tient en deux commandes, et l'image versionnée est dans le registre deux minutes plus tard.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Environnements</span>
+  <h2>La même image, du test à la production</h2>
+  <div class="flow">
+    <div><b>Pull request</b>lint, tests. Rien n'est publié.</div>
+    <div class="on"><b>main</b>image <code>:sha</code> publiée. Déployée en <em>test</em>.</div>
+    <div><b>Tag v*</b>image <code>:vX.Y.Z</code>. Déployée en <em>préproduction</em>.</div>
+    <div><b>Production</b>la même image <code>:vX.Y.Z</code>, promue, pas reconstruite.</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Construire une fois, déployer partout</h3>
+      <p>Ce qui change entre les environnements, c'est la <strong>configuration</strong> (variables, secrets), jamais l'image. Ce qui a été testé est exactement ce qui est livré.</p>
+    </div>
+    <div>
+      <h3>Promotion</h3>
+      <p>Passer en production n'est pas un build : c'est pointer l'environnement sur une étiquette déjà validée. Revenir en arrière, c'est pointer sur la précédente.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Principe « build once, deploy many ». Relier à la configuration par variables d'environnement vue hier avec Compose : DATABASE_URL change, l'image ne change pas. Demain avec Kubernetes, le retour arrière consistera littéralement à remettre l'étiquette précédente.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Bonnes pratiques</span>
+  <h2>Un pipeline que l'équipe <em>aime</em></h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>Rapide</strong> : moins de dix minutes, étapes légères d'abord, jobs indépendants en parallèle.</li>
+        <li><strong>Déterministe</strong> : versions épinglées dans <code>requirements.txt</code>, image de base taguée, pas de « dernière version » implicite.</li>
+        <li><strong>Lisible</strong> : un nom par step, un job par responsabilité, un workflow par intention.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><strong>Reproductible localement</strong> : chaque step est une commande que l'on peut taper sur sa machine.</li>
+        <li><strong>Cache</strong> : réutiliser les dépendances d'un run à l'autre (<code>actions/cache</code>, couches Docker).</li>
+        <li><strong>Matrix</strong> : tester plusieurs versions de Python en un seul job déclaré.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout teal">
+    <p>Le pipeline est du code : il se relit en pull request, se refactorise, et se documente. Un <code>README</code> qui explique comment livrer est aussi important que le code livré.</p>
+  </div>
+  <aside class="notes">
+    Diapo de synthèse avant le défi. Demander à la salle quelle pratique leur manque le plus dans leurs projets actuels. Prévenir : le défi demande d'enchaîner build, scan et publication ; viser d'abord un pipeline qui marche, optimiser ensuite.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Défi en autonomie · 14:00 – 15:30 · par équipe</span>
+  <h2>Build, scan et publication automatiques</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Secrets :</strong> jeton <em>package : write</em> déclaré en <code>REGISTRY_USER</code> / <code>REGISTRY_TOKEN</code>.</li>
+        <li><strong>Job build</strong> après <code>test</code>, sur push <code>main</code> seulement : image taguée avec le SHA court.</li>
+        <li><strong>Steps scan</strong> (trivy, bloquant sur CRITICAL) et <strong>publish</strong> : <code>:sha</code> et <code>:latest</code>.</li>
+        <li><strong>Protéger <code>main</code></strong> : statut <code>test</code> requis, une approbation, pas de push direct.</li>
+        <li><strong>Livrer</strong> <code>v1.0.0</code> avec <code>release.yml</code> : l'image versionnée apparaît dans Paquets.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Fiche :</strong> <code>ateliers/jour3-cicd/README.md</code>, partie 2</p></div>
+      <h3>Critères de réussite</h3>
+      <ul class="tight">
+        <li>Un push sur <code>main</code> produit une image <code>:sha</code> dans le registre.</li>
+        <li>Une PR avec un test cassé ne peut pas être fusionnée.</li>
+        <li><code>docker pull …:v1.0.0</code> marche depuis une autre VM.</li>
+      </ul>
+      <p class="small mt">Bonus : <code>pip-audit</code>, cache pip, matrice Python.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Former les mêmes équipes qu'hier. Passer voir chaque équipe au moment du docker login : c'est là que les jetons mal scopés et les registres non déclarés comme insecure se révèlent. Vers 15:15, une équipe montre son run complet et sa page Paquets au projecteur.
+  </aside>
+</section>
+
+<!-- ============================ BILAN ============================ -->
+<section>
+  <span class="eyebrow">Bilan · 15:30 – 16:00</span>
+  <h2>Ce que l'on retient du jour 3</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <span class="num">1</span>
+      <h3>Chaque commit est vérifié</h3>
+      <p>Lint, tests, build, scan : une machine le fait, à chaque fois, en moins de dix minutes. Rouge sur <code>main</code> = priorité absolue.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">2</span>
+      <h3>Le pipeline est du code</h3>
+      <p>Un YAML versionné, un runner qui écoute, des secrets hors du dépôt. Chaque step se rejoue à la main.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">3</span>
+      <h3>Construire une fois</h3>
+      <p>Une image immuable par commit, une par version. Les environnements changent la configuration, pas l'image.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p><strong>Demain :</strong> l'infrastructure devient du code avec Terraform et Ansible, puis Kubernetes déploie l'image que votre pipeline vient de publier. Laissez vos runners allumés.</p>
+  </div>
+  <aside class="notes">
+    Tour de table : une chose apprise, une chose encore floue. Noter les points flous. Rappeler que les VM doivent rester allumées : les runners et le registre serviront demain pour tirer les images dans Kubernetes.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Questions &amp; réponses</div>
+  <h2>Merci.</h2>
+  <p>Fiches d'atelier, workflows et solutions : dépôt <code>formation-devops</code> sur Gitea.<br>À demain, 09:00, pour Terraform et Kubernetes.</p>
+  <aside class="notes">Rester disponible dix minutes après la fin pour les questions individuelles. Vérifier une dernière fois que les runners sont allumés avant de quitter la salle.</aside>
+  <p class="credits">Photos — Wikimedia Commons · assembly-line : Siyuwj (CC BY-SA 3.0) · library : Michael D Beckwith (CC BY 3.0) · conveyor : RICHI Manufacture (CC BY 4.0) · keyboard : Colin (CC BY-SA 4.0) · padlock : Partonez (CC BY-SA 4.0) · container-ship : Downtowngal (CC BY-SA 4.0)</p>
+</section>
+
+</div>
+</div>
+<script src="../assets/vendor/reveal/reveal.js"></script>
+<script src="../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../assets/deck.js"></script>
+</body>
+</html>

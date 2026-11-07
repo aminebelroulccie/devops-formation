@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Formini Tasks</title>
+  <style>
+    :root { --paper: #F7F4EE; --ink: #14213D; --accent: #E8611A; --line: #D9D3C7; --muted: #7A8399; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans', 'Segoe UI', Helvetica, Arial, sans-serif; }
+    main { max-width: 640px; margin: 0 auto; padding: 48px 16px; }
+    h1 { font-family: Georgia, serif; font-weight: 600; font-size: 2rem; margin: 0 0 4px; }
+    h1 span { color: var(--accent); }
+    .meta { color: var(--muted); font-family: monospace; font-size: 0.8rem; margin-bottom: 32px; }
+    form { display: flex; gap: 8px; margin-bottom: 24px; }
+    input[type=text] { flex: 1; font: inherit; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    button { font: inherit; padding: 10px 18px; border: none; border-radius: 8px; background: var(--ink); color: var(--paper); cursor: pointer; }
+    button.ghost { background: none; color: var(--muted); padding: 4px 8px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+    li:last-child { border-bottom: 1px solid var(--line); }
+    li.done .title { text-decoration: line-through; color: var(--muted); }
+    .title { flex: 1; }
+    .empty { color: var(--muted); font-style: italic; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Formini <span>Tasks</span></h1>
+  <div class="meta" id="meta">version : …</div>
+  <form id="f">
+    <input type="text" id="title" placeholder="Nouvelle tâche" autocomplete="off" required>
+    <button type="submit">Ajouter</button>
+  </form>
+  <ul id="list"></ul>
+</main>
+<script>
+  const list = document.getElementById('list');
+  async function load() {
+    const r = await fetch('/api/tasks');
+    const tasks = await r.json();
+    list.innerHTML = tasks.length ? '' : '<li class="empty">Aucune tâche. Ajoutez-en une.</li>';
+    for (const t of tasks) {
+      const li = document.createElement('li');
+      li.className = t.done ? 'done' : '';
+      li.innerHTML = `<input type="checkbox" ${t.done ? 'checked' : ''}> <span class="title"></span> <button class="ghost">✕</button>`;
+      li.querySelector('.title').textContent = t.title;
+      li.querySelector('input').onchange = async (e) => {
+        await fetch('/api/tasks/' + t.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: e.target.checked }) });
+        load();
+      };
+      li.querySelector('button').onclick = async () => { await fetch('/api/tasks/' + t.id, { method: 'DELETE' }); load(); };
+      list.appendChild(li);
+    }
+  }
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('title');
+    await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: input.value }) });
+    input.value = '';
+    load();
+  };
+  fetch('/health').then(r => r.json()).then(h => {
+    document.getElementById('meta').textContent = `version : ${h.version} · base : ${h.database} · hôte : ${location.host}`;
+  });
+  load();
+</script>
+</body>
+</html>

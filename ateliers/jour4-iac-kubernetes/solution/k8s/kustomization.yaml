@@ -1,0 +1,10 @@
+# kubectl apply -k k8s/   (secret.yaml doit exister : copier secret.example.yaml)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formini-tasks
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - postgres.yaml
+  - app.yaml
+  - service.yaml

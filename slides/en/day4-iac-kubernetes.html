@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Day 4 — Infrastructure as Code and Kubernetes · Formini</title>
+  <link rel="icon" href="../../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../../assets/theme.css">
+</head>
+<body data-deck="DevOps Training · Day 4 · IaC &amp; Kubernetes" data-assets="../../assets/">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COVER ============================ -->
+<section class="dark cover" data-photo="construction.jpg">
+  <img class="logo plain" src="../../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">04<small>Day 4 / 5</small></div>
+  <h1>Infrastructure as Code <em>&amp;</em> Kubernetes</h1>
+  <p class="meta"><span>Wednesday 11 November 2026</span><span>09:00 – 16:00</span><span>DevOps Training · 5 days</span></p>
+  <aside class="notes">
+    Welcome. Recap of yesterday: the pipeline builds and publishes an image on every commit. Today we give it somewhere to run. Two playgrounds: AWS with Terraform and Ansible in the morning, Kubernetes with kind in the afternoon. Announce the rule of the day right away: everything created on AWS is destroyed before 16:00, no exceptions.
+  </aside>
+</section>
+
+<!-- ============================ WEEK ============================ -->
+<section>
+  <span class="eyebrow">The week at a glance</span>
+  <h2>Deploying <em>at scale</em>, through code</h2>
+  <div class="flow">
+    <div><b>Day 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div><b>Day 2</b>Docker &amp; Compose</div>
+    <div><b>Day 3</b>CI/CD with Gitea Actions</div>
+    <div class="on"><b>Day 4</b>Terraform, Ansible, Kubernetes</div>
+    <div><b>Day 5</b>Prometheus, Grafana, final project</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Where Formini Tasks stands</h3>
+      <p>The code is on Gitea, the image is built and tested by the pipeline and published to the registry under a tag. What is missing is an <strong>infrastructure</strong> to run it on.</p>
+    </div>
+    <div>
+      <h3>By tonight</h3>
+      <p>You will be able to create a server on AWS with one command, configure it without logging in, and run the application as several replicas on Kubernetes, with zero-downtime updates.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Tie it back to yesterday's pipeline: the image tag produced by CI is the input for today. If some teams have no published image, a fallback image is available in the formini organization of the registry.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="lecture-hall.jpg">
+  <span class="eyebrow">Today's agenda</span>
+  <h2>Managing infrastructure through code</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>Infrastructure as Code</strong> and <strong>Terraform</strong> on AWS · <strong>Ansible</strong></span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Coffee break</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Guided lab</strong>: provision an AWS server with Terraform, configure it with Ansible</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Lunch break</span></li>
+    <li><span class="t">13:00 – 14:00</span><span><strong>Kubernetes</strong>: Pods, Deployments, Services · scaling and rolling updates</span></li>
+    <li><span class="t">14:00 – 15:30</span><span><strong>Team challenge</strong>: deploy Formini Tasks on a kind cluster, scale it, update it</span></li>
+    <li><span class="t">15:30 – 16:00</span><span>Wrap-up, verified <code>terraform destroy</code>, Q&amp;A</span></li>
+  </ul>
+  <aside class="notes">
+    A dense day: two tools in the morning, a third in the afternoon. Warn that we deliberately stay at surface level on Terraform and Ansible so we can go deep on Kubernetes, which is the core of the final project.
+  </aside>
+</section>
+
+<!-- ============================ IaC INTRO ============================ -->
+<section>
+  <span class="eyebrow">Before</span>
+  <h2>Infrastructure <em>by hand</em></h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>The console and the clicks</h3>
+      <p>A server created in twenty clicks, a security group changed "just to test", a rule nobody remembers.</p>
+      <p>Nobody can reproduce the production environment. The install document is three versions behind.</p>
+    </div>
+    <div class="card teal">
+      <h3>Drift</h3>
+      <p>Staging and production slowly diverge. A fix works here, not there.</p>
+      <p>Someone leaves the team, and the knowledge leaves with them. An incident, and you rebuild from memory.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>A hand-configured server is a <strong>pet</strong>: unique, cared for, irreplaceable. We want <strong>cattle</strong>: numbered, replaceable, recreated identically with one command.</p>
+  </div>
+  <aside class="notes">
+    Ask who has already inherited a server whose configuration nobody knew. The "pets vs cattle" metaphor is blunt but it sticks. Key point: the problem is not the AWS console, it is the lack of a trail and of reproducibility.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Infrastructure as Code</span>
+  <h2>Describe, version, review, apply</h2>
+  <div class="cols-3">
+    <div class="card"><h3>Reproducible</h3><p>The same description produces the same infrastructure, today and in six months, here and in another region.</p></div>
+    <div class="card"><h3>Versioned</h3><p>In Git, like everything else. Who opened this port, when, why: <code>git log</code> has the answer.</p></div>
+    <div class="card"><h3>Reviewed</h3><p>A pull request for an infrastructure change. A colleague reviews, CI checks the plan before applying.</p></div>
+  </div>
+  <h3 class="mt">Three tools, three roles</h3>
+  <dl class="kv">
+    <div><dt>Terraform</dt><dd><strong>Provision</strong>: create cloud resources (network, servers, databases).</dd></div>
+    <div><dt>Ansible</dt><dd><strong>Configure</strong>: install and tune what runs on the servers.</dd></div>
+    <div><dt>Kubernetes</dt><dd><strong>Orchestrate</strong>: run the containers, replicate them, update them.</dd></div>
+  </dl>
+  <aside class="notes">
+    Stress "review": it is the Day 1 DevOps practice applied to infrastructure. A Terraform plan shown in a PR is the equivalent of a code diff. Present the three tools as layers, not competitors.
+  </aside>
+</section>
+
+<!-- ============================ PART 1: TERRAFORM ============================ -->
+<section class="dark part" data-photo="blueprint.jpg">
+  <div class="num">Part 1 / 4</div>
+  <h2>Terraform</h2>
+  <p>Describe a cloud infrastructure in text files, and let the tool work out what needs to be created, changed or destroyed.</p>
+</section>
+
+<section data-side-photo="keyboard.jpg">
+  <span class="eyebrow">Vocabulary</span>
+  <h2>Five words to understand it all</h2>
+  <dl class="kv">
+    <div><dt>provider</dt><dd><strong>The plugin that talks to an API.</strong> <code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>gitea</code>… hundreds of them.</dd></div>
+    <div><dt>resource</dt><dd><strong>An object to create.</strong> A VPC, an instance, a bucket. Identified by a type and a local name.</dd></div>
+    <div><dt>variable</dt><dd><strong>An input parameter.</strong> The region, the machine size, your name. With a type and a default value.</dd></div>
+    <div><dt>output</dt><dd><strong>A value exposed after creation.</strong> The public IP address, an SSH command ready to copy.</dd></div>
+    <div><dt>state</dt><dd><strong>Terraform's memory.</strong> What it created, with which identifiers. Without it, it recreates everything.</dd></div>
+  </dl>
+  <p class="small mt">The language is called HCL: blocks, attributes, references between resources. Declarative: you describe the desired state, not the steps.</p>
+  <aside class="notes">
+    Draw the parallel with a programming language: provider = library, resource = object, variable = argument, output = return value, state = database. The word "declarative" will come back with Kubernetes this afternoon.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The workflow</span>
+  <h2>Write, plan, apply</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 250" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="tfa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="20" fill="#14213D">
+        <rect x="10" y="60" width="200" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="110" y="105" text-anchor="middle" font-weight="600">HCL code</text>
+        <text x="110" y="135" text-anchor="middle" font-size="16" fill="#7A8399">main.tf, variables.tf</text>
+
+        <rect x="300" y="60" width="200" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="400" y="105" text-anchor="middle" font-weight="600">terraform init</text>
+        <text x="400" y="135" text-anchor="middle" font-size="16" fill="#7A8399">downloads the providers</text>
+
+        <rect x="590" y="60" width="200" height="110" rx="14" fill="#14213D"/>
+        <text x="690" y="105" text-anchor="middle" font-weight="600" fill="#F7F4EE">terraform plan</text>
+        <text x="690" y="135" text-anchor="middle" font-size="16" fill="#C9CFDD">+ create  ~ change  − destroy</text>
+
+        <rect x="880" y="60" width="200" height="110" rx="14" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="980" y="105" text-anchor="middle" font-weight="600" fill="#E8611A">terraform apply</text>
+        <text x="980" y="135" text-anchor="middle" font-size="16" fill="#7A8399">calls to the AWS API</text>
+
+        <line x1="212" y1="115" x2="296" y2="115" stroke="#7A8399" stroke-width="2" marker-end="url(#tfa)"/>
+        <line x1="502" y1="115" x2="586" y2="115" stroke="#7A8399" stroke-width="2" marker-end="url(#tfa)"/>
+        <line x1="792" y1="115" x2="876" y2="115" stroke="#7A8399" stroke-width="2" marker-end="url(#tfa)"/>
+
+        <path d="M980 172 Q980 230 690 230 Q400 230 400 172" fill="none" stroke="#7A8399" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#tfa)"/>
+        <text x="690" y="222" text-anchor="middle" font-size="15" fill="#7A8399" font-family="JetBrains Mono, monospace">terraform.tfstate: what really exists</text>
+      </g>
+    </svg>
+  </div>
+  <p>The <strong>plan</strong> is a diff between what the code describes and what the state contains. You always read it before applying. A <strong>destroy</strong> is a plan that removes everything.</p>
+  <aside class="notes">
+    Stress plan: it is the tool's safety net. A plan announcing "1 to destroy" on a database should raise an eyebrow. Show a live init then plan on today's project, and read the + and ~ lines together.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">A first file</span>
+  <h2>A server in <em>twenty lines</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="main.tf" class="sm"><code class="language-hcl">terraform {
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~&gt; 5.0" }
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+resource "aws_instance" "web" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.micro"
+  key_name      = aws_key_pair.formini.key_name
+  vpc_security_group_ids = [aws_security_group.web.id]
+  subnet_id     = aws_subnet.public.id
+  tags = { Name = "formini-${var.owner}" }
+}</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>terraform {}</dt><dd>Required providers, pinned versions.</dd></div>
+        <div><dt>provider</dt><dd>The region. Credentials come from the environment, never from the code.</dd></div>
+        <div><dt>resource</dt><dd>A type (<code>aws_instance</code>) and a local name (<code>web</code>).</dd></div>
+        <div><dt>references</dt><dd><code>aws_subnet.public.id</code>: the creation order follows from it.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the file top to bottom. The takeaway: references between resources build a dependency graph, Terraform creates in the right order and in parallel when possible. Recall yesterday's rule on secrets: never in Git.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Parameterize and expose</span>
+  <h2>Variables in, outputs out</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="variables.tf" class="sm"><code class="language-hcl">variable "region" {
+  type    = string
+  default = "eu-west-3"   # Paris
+}
+
+variable "owner" {
+  type        = string
+  description = "Your first name, for the tags"
+}
+
+variable "public_key_path" {
+  type    = string
+  default = "~/.ssh/id_ed25519.pub"
+}</code></pre>
+    </div>
+    <div>
+      <pre data-label="outputs.tf" class="sm"><code class="language-hcl">output "public_ip" {
+  value = aws_instance.web.public_ip
+}
+
+output "ssh" {
+  value = "ssh ubuntu@${aws_instance.web.public_ip}"
+}</code></pre>
+      <pre data-label="terminal" class="sm"><code class="language-bash">terraform apply -var="owner=amina"
+# or: a terraform.tfvars file
+terraform output public_ip</code></pre>
+    </div>
+  </div>
+  <p class="small">A variable with no default value is prompted for at run time. Values go in <code>terraform.tfvars</code>, excluded from Git if it contains anything sensitive.</p>
+  <aside class="notes">
+    The public key from Day 1 is reused: Terraform sends it to AWS as a key pair. No new key to generate. Show terraform output after the apply: it is the entry point for Ansible right afterwards.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">State</span>
+  <h2>The most <em>precious</em> file in the project</h2>
+  <div class="cols">
+    <div>
+      <p><code>terraform.tfstate</code> maps each resource in the code to a real object: instance ID, VPC ID, addresses.</p>
+      <ul>
+        <li>Lost: Terraform knows nothing any more, and recreates everything twice over.</li>
+        <li>Shared by e-mail: two people apply, the state diverges.</li>
+        <li>It contains sensitive values in clear text.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>As a team: remote state</h3>
+      <pre data-label="backend.tf" class="sm"><code class="language-hcl">terraform {
+  backend "s3" {
+    bucket       = "formini-tfstate"
+    key          = "formation/amina.tfstate"
+    region       = "eu-west-3"
+    use_lockfile = true   # native S3 lock
+  }
+}</code></pre>
+      <p class="small">A versioned S3 bucket, a lock against concurrent applies. Never put the state in Git.</p>
+    </div>
+  </div>
+  <div class="callout warn">
+    <p>Today the state stays local for simplicity. Before <code>terraform destroy</code>, check that the file is still there: without it, cleanup is done by hand in the console.</p>
+  </div>
+  <aside class="notes">
+    State is the concept that surprises people: Terraform does not "look at" AWS to know what it created, it reads its file (then refreshes it). Useful anecdote: a tfstate committed to a public Git repo exposes database passwords. The S3 backend is the best practice, mentioned but not practised today.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Today's project</span>
+  <h2>One network, one server, one key</h2>
+  <div class="cols wide-left">
+    <div class="diagram">
+      <svg viewBox="0 0 680 330" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="16" fill="#14213D">
+          <rect x="10" y="40" width="660" height="280" rx="14" fill="none" stroke="#14213D" stroke-width="2" stroke-dasharray="8 6"/>
+          <text x="28" y="68" font-family="JetBrains Mono, monospace" font-size="14" fill="#7A8399">VPC 10.42.0.0/16 · eu-west-3</text>
+
+          <rect x="40" y="95" width="420" height="200" rx="12" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <text x="58" y="120" font-family="JetBrains Mono, monospace" font-size="14" fill="#7A8399">Public subnet 10.42.1.0/24</text>
+
+          <rect x="110" y="150" width="280" height="110" rx="12" fill="#14213D"/>
+          <text x="250" y="190" text-anchor="middle" font-weight="600" fill="#F7F4EE" font-size="18">EC2 t3.micro</text>
+          <text x="250" y="215" text-anchor="middle" fill="#C9CFDD" font-size="14">Ubuntu 24.04 · Day 1 SSH key</text>
+          <text x="250" y="238" text-anchor="middle" fill="#F8A77A" font-size="13" font-family="JetBrains Mono, monospace">SG: 22/tcp · 5000/tcp</text>
+
+          <rect x="520" y="150" width="120" height="110" rx="12" fill="none" stroke="#E8611A" stroke-width="2"/>
+          <text x="580" y="195" text-anchor="middle" font-weight="600" fill="#E8611A">Internet</text>
+          <text x="580" y="218" text-anchor="middle" font-size="13" fill="#7A8399">Gateway</text>
+
+          <line x1="392" y1="205" x2="516" y2="205" stroke="#7A8399" stroke-width="2"/>
+          <text x="454" y="196" text-anchor="middle" font-size="12" fill="#7A8399" font-family="JetBrains Mono, monospace">route 0.0.0.0/0</text>
+          <line x1="580" y1="148" x2="580" y2="10" stroke="#7A8399" stroke-width="2" stroke-dasharray="4 4"/>
+          <text x="600" y="22" font-size="13" fill="#7A8399">to the Formini workstation</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <h3>Nine resources</h3>
+      <ul class="tight small">
+        <li><code>aws_vpc</code></li>
+        <li><code>aws_subnet</code> (public)</li>
+        <li><code>aws_internet_gateway</code></li>
+        <li><code>aws_route_table</code> + association</li>
+        <li><code>aws_security_group</code></li>
+        <li><code>aws_key_pair</code></li>
+        <li><code>aws_instance</code> + <code>user_data</code></li>
+        <li><code>data.aws_ami</code> (Ubuntu 24.04)</li>
+      </ul>
+      <p class="small mt">Everything is tagged <code>Project=formation-devops</code> and <code>Owner=&lt;first name&gt;</code>: leftovers are easy to find in the console.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Trace the path of a packet: Formini workstation → Internet → IGW → route table → subnet → security group → instance. The security group is a firewall: only 22 and 5000 are open. user_data is a script run on first boot: here it simply updates the system.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The commands</span>
+  <h2>Seven commands, one of them <em>mandatory</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash">export AWS_ACCESS_KEY_ID=...        # provided by the trainer
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=eu-west-3
+
+cd terraform
+terraform init           # providers, lockfile
+terraform fmt            # formatting
+terraform validate       # syntax and references
+terraform plan           # read it! + ~ −
+terraform apply          # type "yes"
+terraform output         # IP, SSH command
+terraform destroy        # before 16:00</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>init</dt><dd>Once per project.</dd></div>
+        <div><dt>plan</dt><dd>Touches nothing. Reads like a diff.</dd></div>
+        <div><dt>apply</dt><dd>Plan, confirmation, creation: two minutes.</dd></div>
+        <div><dt>destroy</dt><dd>Removes everything the state knows about.</dd></div>
+      </dl>
+      <div class="callout warn">
+        <p><strong>Rule of the day:</strong> a forgotten EKS cluster costs €70 a day. We destroy before leaving, and we check in the console.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Live demo: init, plan, apply on the project, commenting on the output. During the two minutes of creation, explain that the AWS Budgets alert is in place and that the trainer will check at the end of the day that the console is empty. Credentials are handed out now, one pair per participant.
+  </aside>
+</section>
+
+<!-- ============================ PART 2: ANSIBLE ============================ -->
+<section class="dark part" data-photo="server-room.jpg">
+  <div class="num">Part 2 / 4</div>
+  <h2>Ansible</h2>
+  <p>The server exists. Now we need to install Docker on it and start the application, without ever logging in by hand.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Principle</span>
+  <h2>Configuring servers <em>without an agent</em></h2>
+  <div class="cols">
+    <div>
+      <p>Ansible connects over <strong>SSH</strong> from your workstation, runs small Python modules on the target, and leaves. Nothing to install on the server side.</p>
+      <ul>
+        <li>The Day 1 SSH key is enough: Ansible uses it.</li>
+        <li>Everything is YAML, readable by a non-developer.</li>
+        <li><strong>Idempotent</strong>: replaying a playbook on an already configured server changes nothing.</li>
+      </ul>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>inventory</dt><dd>The list of machines, by group. <code>[web]</code>, <code>[db]</code>.</dd></div>
+        <div><dt>module</dt><dd>An elementary action: <code>apt</code>, <code>copy</code>, <code>service</code>, <code>user</code>.</dd></div>
+        <div><dt>task</dt><dd>A module call, with a readable name.</dd></div>
+        <div><dt>playbook</dt><dd>Ordered tasks, applied to a group.</dd></div>
+        <div><dt>role</dt><dd>A reusable playbook, packaged with its files.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Compare with a shell script: the script says "do this", Ansible says "make sure this is true". Idempotent is the most important word of this part: an apt install already done is skipped, an identical file is not copied again. Direct link to the SSH key created on Day 1.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Inventory and ad hoc commands</span>
+  <h2>Talking to ten servers as if they were one</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="inventory.ini"><code class="language-ini">[web]
+15.188.42.17  ansible_user=ubuntu
+
+[web:vars]
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=/usr/bin/python3</code></pre>
+      <pre data-label="ansible.cfg"><code class="language-ini">[defaults]
+inventory = inventory.ini
+host_key_checking = False</code></pre>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># does the target answer?
+ansible web -m ping
+
+# one command on the whole group
+ansible web -a "uptime"
+
+# a module, with privilege escalation
+ansible web -b -m apt -a "name=htop state=present"
+
+# gather facts (OS, IP, CPU…)
+ansible web -m setup | head -40</code></pre>
+      <p class="small">The IP comes from <code>terraform output</code>. Ad hoc commands are for diagnosis; to configure, you write a playbook.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo: ping then uptime on the instance created earlier. Show the green "SUCCESS" output and the JSON. host_key_checking set to False is acceptable in training, not in production. Facts are variables available in playbooks.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Playbook</span>
+  <h2>Anatomy of a playbook</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="playbook.yml" class="sm"><code class="language-yaml">- name: Prepare the Formini Tasks server
+  hosts: web
+  become: true
+  tasks:
+    - name: Install Docker
+      ansible.builtin.apt:
+        name: [docker-ce, docker-compose-plugin]
+        state: present
+        update_cache: true
+      notify: Restart Docker
+    - name: Copy the application
+      ansible.builtin.copy:
+        src: ../app/
+        dest: /opt/formini-tasks/
+  handlers:
+    - name: Restart Docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>hosts</dt><dd>The targeted inventory group.</dd></div>
+        <div><dt>become</dt><dd>Switch to root (sudo).</dd></div>
+        <div><dt>state</dt><dd>The desired state, not the action.</dd></div>
+        <div><dt>notify</dt><dd>A handler, run once at the end, only if something changed.</dd></div>
+      </dl>
+      <pre data-label="terminal" class="sm"><code class="language-bash">ansible-playbook playbook.yml
+ansible-playbook playbook.yml --check   # dry run
+ansible-playbook playbook.yml -t docker # by tag</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the tasks as sentences. Run the playbook twice in the demo: the first output is yellow (changed), the second green (ok): that is idempotence made visible. The handler only fires if something changed.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Who does what</span>
+  <h2>Terraform <em>or</em> Ansible?</h2>
+  <table>
+    <tr><th>Question</th><th>Terraform</th><th>Ansible</th></tr>
+    <tr><td>Create a network, an instance, a bucket</td><td>Yes, that is its job</td><td>Possible, not practical</td></tr>
+    <tr><td>Install a package, drop a file</td><td>No (or via user_data)</td><td>Yes, that is its job</td></tr>
+    <tr><td>Detect and fix drift</td><td>Plan vs state</td><td>Replay the playbook</td></tr>
+    <tr><td>Connection to the target</td><td>Provider API</td><td>SSH</td></tr>
+    <tr><td>Tear down cleanly</td><td><code>destroy</code></td><td><code>state: absent</code> tasks</td></tr>
+    <tr><td>With Kubernetes</td><td>Creates the cluster</td><td>Rarely useful</td></tr>
+  </table>
+  <div class="callout mt">
+    <p>Classic sequence: <strong>Terraform</strong> creates the server and outputs its IP, <strong>Ansible</strong> reads it and configures. That is exactly the lab that follows.</p>
+  </div>
+  <aside class="notes">
+    Close the theoretical morning on this grid. Many teams do everything with a single tool: it is possible but you end up fighting it. Ask the question: and to deploy the application itself? Answer this afternoon, that is Kubernetes' role.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Guided lab · 10:45 – 12:00 · individual</span>
+  <h2>An AWS server, from zero to the application</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Export</strong> your AWS credentials, then <code>terraform init</code> and <code>plan</code>: read the nine resources.</li>
+        <li><strong>Apply</strong>, get the IP with <code>terraform output</code>, connect over SSH with the Day 1 key.</li>
+        <li><strong>Inventory:</strong> copy the IP into <code>inventory.ini</code>, check with <code>ansible web -m ping</code>.</li>
+        <li><strong>Playbook:</strong> install Docker, drop the application, start it. Open <code>http://IP:5000</code>.</li>
+        <li><strong>Destroy:</strong> <code>terraform destroy</code>, then check in the EC2 console that nothing is left.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Handout:</strong> <code>ateliers/jour4-iac-kubernetes/README.md</code>, part 1</p></div>
+      <div class="callout warn"><p>The Gitea registry is not reachable from AWS: the playbook copies the code and builds the image on the server.</p></div>
+      <p class="small">Bonus: replay the playbook and observe "changed=0", add <code>fail2ban</code> as a task, restrict the SSH port to your IP only.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Hand out the credentials. Common failures: region missing from the environment, public key not found (path in terraform.tfvars), security group blocking 5000, playbook started before the instance answers over SSH (wait a minute). Go round at 11:50 to make sure everyone has run destroy or will do so at 12:00 sharp.
+  </aside>
+</section>
+
+<!-- ============================ PART 3: KUBERNETES ============================ -->
+<section class="dark part" data-photo="harbor-night.jpg">
+  <div class="num">Part 3 / 4</div>
+  <h2>Kubernetes</h2>
+  <p>Pods, Deployments and Services: running containers across several machines as if there were only one.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Why</span>
+  <h2>Docker Compose stops <em>at one machine</em></h2>
+  <div class="cols-3">
+    <div class="card"><h3>A server goes down</h3><p>With Compose, the application goes down with it. Kubernetes restarts the containers elsewhere, on its own.</p></div>
+    <div class="card"><h3>Traffic doubles</h3><p>With Compose, you edit a file and pray. Kubernetes goes from 2 to 10 replicas in one command.</p></div>
+    <div class="card"><h3>A new version</h3><p>With Compose, a few seconds of downtime. Kubernetes replaces the replicas one by one, with no interruption, and rolls back if it breaks.</p></div>
+  </div>
+  <div class="callout mt">
+    <p>Kubernetes is a <strong>reconciliation loop</strong>: you declare the desired state ("3 replicas of this image"), it constantly compares with reality and corrects the gap. Same logic as Terraform, running continuously.</p>
+  </div>
+  <aside class="notes">
+    Go back to the compose.yaml from Day 2: it was perfect for development, insufficient for operations. The word "reconciliation" is the key: link it to the Terraform plan, but executed every second by the cluster itself.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Architecture</span>
+  <h2>A control plane, some nodes</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg">
+      <g font-size="17" fill="#14213D">
+        <rect x="10" y="20" width="330" height="260" rx="14" fill="#14213D"/>
+        <text x="175" y="52" text-anchor="middle" font-weight="600" fill="#F7F4EE" font-size="19">Control plane</text>
+        <rect x="30" y="72" width="290" height="40" rx="8" fill="#243052"/><text x="175" y="98" text-anchor="middle" fill="#F7F4EE" font-size="15">API server · kubectl talks here</text>
+        <rect x="30" y="122" width="290" height="40" rx="8" fill="#243052"/><text x="175" y="148" text-anchor="middle" fill="#F7F4EE" font-size="15">etcd · the desired state, stored</text>
+        <rect x="30" y="172" width="290" height="40" rx="8" fill="#243052"/><text x="175" y="198" text-anchor="middle" fill="#F7F4EE" font-size="15">scheduler · picks the node</text>
+        <rect x="30" y="222" width="290" height="40" rx="8" fill="#243052"/><text x="175" y="248" text-anchor="middle" fill="#F7F4EE" font-size="15">controllers · reconcile</text>
+
+        <g>
+          <rect x="400" y="20" width="340" height="260" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+          <text x="570" y="52" text-anchor="middle" font-weight="600" font-size="19">Node 1</text>
+          <rect x="420" y="72" width="300" height="36" rx="8" fill="#EFEAE0"/><text x="570" y="96" text-anchor="middle" font-size="14" fill="#3D4A63">kubelet · containerd</text>
+          <rect x="420" y="125" width="140" height="60" rx="8" fill="none" stroke="#E8611A" stroke-width="2"/><text x="490" y="160" text-anchor="middle" font-size="14" fill="#E8611A">Pod app</text>
+          <rect x="580" y="125" width="140" height="60" rx="8" fill="none" stroke="#E8611A" stroke-width="2"/><text x="650" y="160" text-anchor="middle" font-size="14" fill="#E8611A">Pod app</text>
+          <rect x="420" y="200" width="140" height="60" rx="8" fill="none" stroke="#1F7A8C" stroke-width="2"/><text x="490" y="235" text-anchor="middle" font-size="14" fill="#1F7A8C">Pod postgres</text>
+        </g>
+        <g>
+          <rect x="770" y="20" width="340" height="260" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+          <text x="940" y="52" text-anchor="middle" font-weight="600" font-size="19">Node 2</text>
+          <rect x="790" y="72" width="300" height="36" rx="8" fill="#EFEAE0"/><text x="940" y="96" text-anchor="middle" font-size="14" fill="#3D4A63">kubelet · containerd</text>
+          <rect x="790" y="125" width="140" height="60" rx="8" fill="none" stroke="#E8611A" stroke-width="2"/><text x="860" y="160" text-anchor="middle" font-size="14" fill="#E8611A">Pod app</text>
+          <rect x="950" y="125" width="140" height="60" rx="8" fill="none" stroke="#D9D3C7" stroke-width="2" stroke-dasharray="5 4"/><text x="1020" y="160" text-anchor="middle" font-size="14" fill="#7A8399">free</text>
+        </g>
+        <line x1="342" y1="150" x2="398" y2="150" stroke="#7A8399" stroke-width="2"/>
+        <line x1="742" y1="150" x2="768" y2="150" stroke="#7A8399" stroke-width="2"/>
+      </g>
+    </svg>
+  </div>
+  <p class="small">You only ever talk to the API server, with <code>kubectl</code>. The rest is internal machinery. With <strong>kind</strong>, all of this runs in Docker containers on your VM.</p>
+  <aside class="notes">
+    Do not linger: participants will not have to administer the control plane. Two things to remember: kubectl sends YAML objects to the API, and the controllers do the rest. kind = Kubernetes in Docker, each node is a container.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The objects</span>
+  <h2>Deployment, ReplicaSet, Pod, Service</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 270" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="k8a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker></defs>
+      <g font-size="18" fill="#14213D">
+        <rect x="10" y="80" width="220" height="100" rx="14" fill="#14213D"/>
+        <text x="120" y="120" text-anchor="middle" font-weight="600" fill="#F7F4EE">Deployment</text>
+        <text x="120" y="148" text-anchor="middle" font-size="14" fill="#C9CFDD">image, replicas, strategy</text>
+
+        <rect x="300" y="80" width="220" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="410" y="120" text-anchor="middle" font-weight="600">ReplicaSet</text>
+        <text x="410" y="148" text-anchor="middle" font-size="14" fill="#7A8399">keeps N identical pods</text>
+
+        <g stroke="#E8611A" stroke-width="2" fill="none">
+          <rect x="590" y="20" width="150" height="60" rx="10"/>
+          <rect x="590" y="105" width="150" height="60" rx="10"/>
+          <rect x="590" y="190" width="150" height="60" rx="10"/>
+        </g>
+        <g fill="#E8611A" font-size="15" text-anchor="middle">
+          <text x="665" y="56">Pod · app</text>
+          <text x="665" y="141">Pod · app</text>
+          <text x="665" y="226">Pod · app</text>
+        </g>
+
+        <rect x="880" y="80" width="220" height="100" rx="14" fill="none" stroke="#1F7A8C" stroke-width="2"/>
+        <text x="990" y="120" text-anchor="middle" font-weight="600" fill="#1F7A8C">Service</text>
+        <text x="990" y="148" text-anchor="middle" font-size="14" fill="#7A8399">a stable address, a DNS name</text>
+
+        <line x1="232" y1="130" x2="296" y2="130" stroke="#7A8399" stroke-width="2" marker-end="url(#k8a)"/>
+        <line x1="522" y1="130" x2="586" y2="50" stroke="#7A8399" stroke-width="2" marker-end="url(#k8a)"/>
+        <line x1="522" y1="130" x2="586" y2="135" stroke="#7A8399" stroke-width="2" marker-end="url(#k8a)"/>
+        <line x1="522" y1="130" x2="586" y2="220" stroke="#7A8399" stroke-width="2" marker-end="url(#k8a)"/>
+        <line x1="878" y1="130" x2="744" y2="50" stroke="#1F7A8C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#k8a)"/>
+        <line x1="878" y1="130" x2="744" y2="135" stroke="#1F7A8C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#k8a)"/>
+        <line x1="878" y1="130" x2="744" y2="220" stroke="#1F7A8C" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#k8a)"/>
+        <text x="811" y="100" text-anchor="middle" font-size="13" fill="#1F7A8C" font-family="JetBrains Mono, monospace">selector: app=tasks</text>
+      </g>
+    </svg>
+  </div>
+  <p>A <strong>Pod</strong> is the unit of execution: one or more containers, an ephemeral IP. You never create a Pod by hand: the <strong>Deployment</strong> takes care of it, and the <strong>Service</strong> makes them reachable by name.</p>
+  <aside class="notes">
+    The Pod is mortal: it can disappear at any moment, its IP changes. Hence the Service, which tracks pods by their labels. The ReplicaSet is invisible day to day, but it is what makes the rolling update possible: the Deployment creates a new ReplicaSet and moves the pods over gradually.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The Deployment</span>
+  <h2>Declaring the application</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="k8s/app.yaml" class="xs"><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasks
+  namespace: formini-tasks
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: tasks }
+  template:
+    metadata:
+      labels: { app: tasks }
+    spec:
+      containers:
+        - name: tasks
+          image: gitea.formini.local:3000/equipe-a/formini-tasks:v1.0.0
+          ports: [{ containerPort: 5000 }]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tasks-secret, key: POSTGRES_PASSWORD }
+            - name: DATABASE_URL
+              value: postgresql://formini:$(POSTGRES_PASSWORD)@postgres:5432/tasks</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>replicas</dt><dd>How many identical pods.</dd></div>
+        <div><dt>selector</dt><dd>The pods it owns: those carrying this label.</dd></div>
+        <div><dt>template</dt><dd>The pod mould: image, ports, variables.</dd></div>
+        <div><dt>namespace</dt><dd>An isolated space per application.</dd></div>
+      </dl>
+      <p class="small"><code>postgres</code> in the URL is the name of the database Service: DNS is provided.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Three levels of metadata is what loses beginners: the Deployment's, the pod template's, and the selector that links them. Show that the template labels and the selector are identical, otherwise kubectl refuses. The $(VAR) syntax is Kubernetes' native variable expansion.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Exposing</span>
+  <h2>Three types of Service</h2>
+  <div class="cols-3">
+    <div class="card">
+      <h3>ClusterIP</h3>
+      <p>Reachable <strong>inside</strong> the cluster only, by its DNS name. The default. Perfect for the database.</p>
+      <p class="small"><code>postgres:5432</code></p>
+    </div>
+    <div class="card accent">
+      <h3>NodePort</h3>
+      <p>Opens a port (30000–32767) on <strong>every node</strong>. Simple, handy locally with kind.</p>
+      <p class="small"><code>http://localhost:8080</code> → 30080</p>
+    </div>
+    <div class="card teal">
+      <h3>LoadBalancer</h3>
+      <p>Requests a load balancer from the <strong>cloud</strong> (ELB on AWS). A public IP, ready for production.</p>
+      <p class="small">EKS, GKE, AKS</p>
+    </div>
+  </div>
+  <pre data-label="k8s/service.yaml" class="sm mt"><code class="language-yaml">apiVersion: v1
+kind: Service
+metadata: { name: tasks, namespace: formini-tasks }
+spec:
+  type: NodePort
+  selector: { app: tasks }
+  ports: [{ port: 80, targetPort: 5000, nodePort: 30080 }]</code></pre>
+  <aside class="notes">
+    The Service is an internal load balancer: each request to tasks:80 goes to one of the pods, in turn. With kind we map NodePort 30080 to port 8080 of the VM through the cluster configuration. Mention Ingress as the HTTP layer on top, as a lab bonus.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Configuration</span>
+  <h2>ConfigMap and Secret</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="k8s/secret.yaml" class="sm"><code class="language-yaml">apiVersion: v1
+kind: Secret
+metadata: { name: tasks-secret, namespace: formini-tasks }
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: change-me</code></pre>
+      <pre data-label="terminal" class="sm"><code class="language-bash"># or, without a file:
+kubectl -n formini-tasks create secret generic tasks-secret \
+  --from-literal=POSTGRES_PASSWORD='a-real-password'</code></pre>
+      <div class="callout warn"><p><code>secret.yaml</code> with a real password does <strong>not</strong> go in Git. We commit <code>secret.example.yaml</code>, like <code>.env</code> on Day 2.</p></div>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>ConfigMap</dt><dd>Non-sensitive configuration: log level, public URL, config file.</dd></div>
+        <div><dt>Secret</dt><dd>Passwords, tokens, keys. Base64-encoded, not encrypted by default.</dd></div>
+        <div><dt>injection</dt><dd>Environment variables (<code>valueFrom</code>) or files mounted into the pod.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Same discipline as with the Gitea secrets yesterday: the value lives outside the repository. Show kubectl get secret -o yaml and decode the base64 to break the illusion of encryption. Production tools (Sealed Secrets, External Secrets, Vault) are not on the syllabus.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Health and resources</span>
+  <h2>Telling Kubernetes <em>how</em> to watch</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="in the Deployment's container" class="sm"><code class="language-yaml">readinessProbe:
+  httpGet: { path: /health, port: 5000 }
+  initialDelaySeconds: 5
+  periodSeconds: 5
+livenessProbe:
+  httpGet: { path: /health, port: 5000 }
+  initialDelaySeconds: 15
+  periodSeconds: 10
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { cpu: 500m, memory: 256Mi }</code></pre>
+      <p class="small"><code>/health</code> checks the database: a pod whose database is unreachable is taken out of traffic, not restarted in a loop.</p>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>readiness</dt><dd><strong>Ready to serve?</strong> No: the Service sends it nothing.</dd></div>
+        <div><dt>liveness</dt><dd><strong>Still alive?</strong> No: the container is restarted.</dd></div>
+        <div><dt>requests</dt><dd>What the scheduler reserves to place the pod.</dd></div>
+        <div><dt>limits</dt><dd>The ceiling. Memory exceeded: OOMKilled.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Without a readiness probe, the rolling update sends traffic to pods that are still starting: 502 errors for a few seconds. Without requests, the scheduler piles everything onto one node. The values here are those of the lab solution.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">kubectl</span>
+  <h2>Everyday commands</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal" class="sm"><code class="language-bash">kubectl apply -f k8s/            # create or update
+kubectl get pods -n formini-tasks -w
+kubectl get all -n formini-tasks
+kubectl describe pod tasks-7c9d… # events, errors
+kubectl logs -f deploy/tasks     # logs
+kubectl exec -it deploy/tasks -- sh
+kubectl port-forward svc/tasks 5000:80
+kubectl delete -f k8s/app.yaml
+kubectl config set-context --current --namespace=formini-tasks</code></pre>
+    </div>
+    <div>
+      <h3>kind, the cluster on your VM</h3>
+      <pre data-label="terminal" class="sm"><code class="language-bash">kind create cluster --name formini --config kind-config.yaml
+kubectl cluster-info
+kind load docker-image monimage:v1 --name formini
+kind delete cluster --name formini</code></pre>
+      <dl class="kv">
+        <div><dt>kind</dt><dd>A complete cluster in Docker, in 60 seconds. For learning, testing, running CI.</dd></div>
+        <div><dt>EKS</dt><dd>AWS's managed service: control plane billed by the hour, EC2 nodes. Same YAML, same kubectl.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Diagnostic reflex to write on the board: get pods → describe pod → logs. Those three commands solve 90% of the lab's problems. Stress: the YAML written for kind is the one you would apply on EKS, unchanged except for the Service type.
+  </aside>
+</section>
+
+<!-- ============================ PART 4: SCALING & ROLLING ============================ -->
+<section class="dark part" data-photo="cloud.jpg">
+  <div class="num">Part 4 / 4</div>
+  <h2>Scaling <em>&amp;</em> rolling updates</h2>
+  <p>What we adopted Kubernetes for: more replicas in one command, a new version with no downtime, a rollback in ten seconds.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Scaling</span>
+  <h2>From two to ten replicas</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># manual
+kubectl scale deploy/tasks --replicas=4
+kubectl get pods -w        # the new pods come up
+
+# or in the YAML, then
+kubectl apply -f k8s/app.yaml
+
+# automatic (HPA), with metrics-server
+kubectl autoscale deploy/tasks \
+  --min=2 --max=10 --cpu-percent=70
+kubectl get hpa</code></pre>
+    </div>
+    <div>
+      <ul>
+        <li>The Service immediately spreads traffic over the new pods, as soon as their <strong>readiness</strong> answers.</li>
+        <li>Scaling down is just as easy: surplus pods are stopped gracefully (SIGTERM, grace period).</li>
+        <li>The <strong>HorizontalPodAutoscaler</strong> adjusts <code>replicas</code> based on CPU or a custom metric. It needs <code>metrics-server</code> and defined <code>requests</code>.</li>
+      </ul>
+      <div class="callout"><p>Scaling a <strong>stateless</strong> application is trivial. The database, however, does not replicate by changing a number: it is a separate topic (StatefulSet, operators, managed service).</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo: scale to 4 with get pods -w in a second terminal, then generate traffic with a curl loop and show the logs of several pods answering. Make clear that the database stays at a single replica: that is deliberate.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Rolling update</span>
+  <h2>Replacing <em>without downtime</em></h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 210" xmlns="http://www.w3.org/2000/svg">
+      <g font-size="14" font-family="JetBrains Mono, monospace" fill="#7A8399">
+        <text x="20" y="22">t0</text><text x="290" y="22">t1</text><text x="560" y="22">t2</text><text x="830" y="22">t3 · done</text>
+      </g>
+      <g stroke-width="2">
+        <!-- t0 -->
+        <rect x="20" y="40" width="110" height="44" rx="8" fill="#14213D"/><text x="75" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1</text>
+        <rect x="140" y="40" width="110" height="44" rx="8" fill="#14213D"/><text x="195" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1</text>
+        <!-- t1: surge -->
+        <rect x="290" y="40" width="110" height="44" rx="8" fill="#14213D"/><text x="345" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1</text>
+        <rect x="410" y="40" width="110" height="44" rx="8" fill="#14213D"/><text x="465" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1</text>
+        <rect x="290" y="96" width="110" height="44" rx="8" fill="none" stroke="#E8611A" stroke-dasharray="5 4"/><text x="345" y="124" text-anchor="middle" fill="#E8611A" font-size="14">v2 starting</text>
+        <!-- t2 -->
+        <rect x="560" y="40" width="110" height="44" rx="8" fill="#14213D" opacity="0.35"/><text x="615" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1 stopping</text>
+        <rect x="680" y="40" width="110" height="44" rx="8" fill="#14213D"/><text x="735" y="68" text-anchor="middle" fill="#F7F4EE" font-size="14">v1</text>
+        <rect x="560" y="96" width="110" height="44" rx="8" fill="#E8611A"/><text x="615" y="124" text-anchor="middle" fill="#F7F4EE" font-size="14">v2 ready</text>
+        <rect x="680" y="96" width="110" height="44" rx="8" fill="none" stroke="#E8611A" stroke-dasharray="5 4"/><text x="735" y="124" text-anchor="middle" fill="#E8611A" font-size="14">v2 starting</text>
+        <!-- t3 -->
+        <rect x="830" y="96" width="110" height="44" rx="8" fill="#E8611A"/><text x="885" y="124" text-anchor="middle" fill="#F7F4EE" font-size="14">v2</text>
+        <rect x="950" y="96" width="110" height="44" rx="8" fill="#E8611A"/><text x="1005" y="124" text-anchor="middle" fill="#F7F4EE" font-size="14">v2</text>
+      </g>
+      <g font-size="14" fill="#3D4A63">
+        <text x="20" y="180">2 v1 pods serving</text>
+        <text x="290" y="180">maxSurge: 1 · one extra v2</text>
+        <text x="560" y="180">readiness OK → one v1 removed</text>
+        <text x="830" y="180">0 requests lost</text>
+      </g>
+    </svg>
+  </div>
+  <div class="cols">
+    <div>
+      <pre data-label="strategy, in the Deployment" class="sm"><code class="language-yaml">strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1          # extra pods during the switch
+    maxUnavailable: 0    # never fewer than replicas</code></pre>
+    </div>
+    <div>
+      <pre data-label="terminal" class="sm"><code class="language-bash">kubectl set image deploy/tasks \
+  tasks=gitea.formini.local:3000/equipe-a/formini-tasks:v1.1.0
+kubectl rollout status deploy/tasks
+kubectl rollout history deploy/tasks</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk through the timeline from left to right. maxUnavailable: 0 guarantees you never have fewer pods than requested; maxSurge: 1 allows one temporary extra pod. The readiness probe is what makes the switch safe. Show rollout status live with a curl loop that never returns an error.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Rollback</span>
+  <h2>When the new version <em>breaks</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># deploy an image that does not exist
+kubectl set image deploy/tasks tasks=…:v9.9.9
+kubectl get pods
+#  tasks-5f…  0/1  ImagePullBackOff
+#  tasks-7c…  1/1  Running   ← v1.1.0 still serving
+
+kubectl rollout status deploy/tasks --timeout=60s
+# error: deployment "tasks" exceeded its progress deadline
+
+kubectl rollout undo deploy/tasks
+kubectl rollout undo deploy/tasks --to-revision=2</code></pre>
+    </div>
+    <div>
+      <ul>
+        <li>Kubernetes <strong>did not remove</strong> the old pods: the new version never passed readiness.</li>
+        <li>The <code>undo</code> reactivates the previous ReplicaSet, the pods come back in seconds.</li>
+        <li><code>rollout history</code> keeps ten revisions by default. Annotate with <code>--record</code> or a <code>kubernetes.io/change-cause</code> annotation.</li>
+      </ul>
+      <div class="callout teal"><p>This is the Day 1 DORA metric "time to restore", brought down to one command.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo the deliberate failure: a non-existent image, then an image that starts but whose /health returns 503. In both cases traffic is never interrupted. Loop back to the DORA metric to show that everything fits together.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Team challenge · 14:00 – 15:30 · per team</span>
+  <h2>Formini Tasks on Kubernetes</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Cluster:</strong> create <code>formini</code> with kind, port 30080 exposed on 8080, Gitea registry allowed.</li>
+        <li><strong>Database:</strong> namespace, Secret, PostgreSQL with a persistent volume and a <code>postgres</code> Service.</li>
+        <li><strong>Application:</strong> Deployment with 2 replicas, probes and resources, NodePort Service. Open <code>http://localhost:8080</code>.</li>
+        <li><strong>Scale:</strong> go to 4 replicas, check that all four are serving.</li>
+        <li><strong>Update:</strong> new image tagged by CI, then a non-existent tag, then <code>rollout undo</code>.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Handout:</strong> <code>ateliers/jour4-iac-kubernetes/README.md</code>, part 2</p></div>
+      <h3>Success criteria</h3>
+      <ul class="tight">
+        <li>A created task survives the deletion of the postgres pod.</li>
+        <li>Zero errors in a <code>curl</code> loop during the update.</li>
+        <li>The rollback restores the previous version in under a minute.</li>
+      </ul>
+      <p class="small mt">Bonus: HPA with metrics-server, nginx Ingress, kustomize dev/prod overlays.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Check at 14:00 that everyone has destroyed their AWS infrastructure before starting. Common failures: ImagePullBackOff (registry name, DNS resolution from the kind nodes, private image), CrashLoopBackOff (DATABASE_URL, database not ready yet), PVC Pending (kind's default StorageClass). At 15:15, one team shows its rolling update on the projector.
+  </aside>
+</section>
+
+<!-- ============================ WRAP-UP ============================ -->
+<section>
+  <span class="eyebrow">Wrap-up · 15:30 – 16:00</span>
+  <h2>What to take away from Day 4</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <span class="num">1</span>
+      <h3>Infrastructure is code</h3>
+      <p>Described, versioned, reviewed in a PR. Terraform provisions, Ansible configures. The plan is read before applying, and whatever you do not keep gets destroyed.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">2</span>
+      <h3>Kubernetes reconciles</h3>
+      <p>You declare the desired state, the cluster maintains it. Pod, Deployment, Service, Secret: four objects cover the essentials.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">3</span>
+      <h3>Ship without fear</h3>
+      <p>Scaling in one command, zero-downtime updates thanks to probes, rollback in ten seconds.</p>
+    </div>
+  </div>
+  <div class="callout warn mt">
+    <p><strong>Before leaving:</strong> <code>terraform destroy</code> run and EC2 console empty, confirmed when your name is called. <strong>Tomorrow:</strong> Prometheus and Grafana on this cluster, then the final team project.</p>
+  </div>
+  <aside class="notes">
+    Roll call: each participant confirms "destroy done, console empty". The trainer checks in the AWS console filtered by tag Project=formation-devops. Round the table: one thing learned, one thing still unclear. Announce that the kind cluster must stay up for tomorrow.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Questions &amp; answers</div>
+  <h2>Thank you.</h2>
+  <p>Leave the kind cluster running, destroy AWS.<br>See you tomorrow at 09:00 for monitoring and the final project.</p>
+  <p class="credits">Photos — Wikimedia Commons · construction : SSJF01 (CC0) · lecture-hall : Stephany5757 (CC BY-SA 4.0) · blueprint : Lyme Art Association (Public domain) · keyboard : Colin (CC BY-SA 4.0) · server-room : Hugovanmeijeren (CC BY-SA 3.0) · harbor-night : chazzie (CC BY 3.0) · cloud : Jakec (CC BY-SA 4.0)</p>
+</section>
+
+</div>
+</div>
+<script src="../../assets/vendor/reveal/reveal.js"></script>
+<script src="../../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../../assets/deck.js"></script>
+</body>
+</html>

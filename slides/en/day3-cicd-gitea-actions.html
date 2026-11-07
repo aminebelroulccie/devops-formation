@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Day 3 — CI/CD Pipelines with Gitea Actions · Formini</title>
+  <link rel="icon" href="../../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../../assets/theme.css">
+</head>
+<body data-deck="DevOps Training · Day 3 · CI/CD" data-assets="../../assets/">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COVER ============================ -->
+<section class="dark cover" data-photo="assembly-line.jpg">
+  <img class="logo plain" src="../../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">03<small>Day 3 / 5</small></div>
+  <h1>CI/CD Pipelines <em>with</em> Gitea Actions</h1>
+  <p class="meta"><span>Tuesday 10 November 2026</span><span>09:00 – 16:00</span><span>DevOps Training · 5 days</span></p>
+  <aside class="notes">
+    Welcome. Before starting, check out loud that everyone has yesterday's Docker image built locally and their formini-tasks repository up to date on Gitea. State the goal of the day in one sentence: by this evening, every pushed commit triggers the tests, the image build and its publication to the registry, all on its own. Remind everyone of the break times.
+  </aside>
+</section>
+
+<!-- ============================ WEEK ============================ -->
+<section>
+  <span class="eyebrow">The week at a glance</span>
+  <h2>Yesterday we packaged, today we <em>automate</em></h2>
+  <div class="flow">
+    <div><b>Day 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div><b>Day 2</b>Docker &amp; Compose</div>
+    <div class="on"><b>Day 3</b>CI/CD with Gitea Actions</div>
+    <div><b>Day 4</b>Terraform, Ansible, Kubernetes</div>
+    <div><b>Day 5</b>Prometheus, Grafana, final project</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>What you already have</h3>
+      <p>A shared Git repository with pull requests, a <code>Dockerfile</code> and a Formini Tasks image published by hand to the Gitea registry.</p>
+    </div>
+    <div>
+      <h3>What you will have tonight</h3>
+      <p>A pipeline that, on every commit, lints, tests, builds the image, scans it and publishes it. Without anyone typing a command.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Connect to yesterday: the docker build command you typed ten times, a pipeline will now type it for you, the same way every time. Stress the continuity: today's pipeline will produce the image that Kubernetes deploys tomorrow.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="library.jpg">
+  <span class="eyebrow">Today's agenda</span>
+  <h2>Automating builds, tests and delivery</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>Continuous integration and delivery</strong>: concepts, stages of a pipeline · <strong>Gitea Actions</strong> and act_runner</span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Coffee break</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Guided lab</strong>: a first workflow that lints and tests on every commit</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Lunch break</span></li>
+    <li><span class="t">13:00 – 14:00</span><span><strong>Secrets and security</strong>: image scanning, branch protection · <strong>Delivery strategies</strong></span></li>
+    <li><span class="t">14:00 – 15:30</span><span><strong>Team challenge</strong>: automatic build, scan and publication of the image</span></li>
+    <li><span class="t">15:30 – 16:00</span><span>Day wrap-up and Q&amp;A</span></li>
+  </ul>
+  <aside class="notes">
+    Walk through the agenda quickly. Point out that the morning is deliberately focused on a minimal pipeline that works, and that the afternoon enriches it. A simple green pipeline beats an ambitious red one.
+  </aside>
+</section>
+
+<!-- ============================ PART 1 ============================ -->
+<section class="dark part" data-photo="conveyor.jpg">
+  <div class="num">Part 1 / 4</div>
+  <h2>Continuous integration and delivery</h2>
+  <p>Why check every commit, and what a pipeline has to do between the code and production.</p>
+  <aside class="notes">One-sentence transition: before opening a YAML file, we agree on what a pipeline has to do and why. Ten minutes of concepts, then we move on to the tool.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Before</span>
+  <h2>Integration hell</h2>
+  <div class="cols">
+    <div class="card accent">
+      <h3>Everyone in their own branch, for weeks</h3>
+      <p>On merge day, nothing compiles. The tests? We'll run them later. The release build is a two-day ritual, with a single expert able to perform it.</p>
+    </div>
+    <div class="card teal">
+      <h3>The symptom</h3>
+      <p>"It worked on my machine." Nobody knows which version is in production or how it was built.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>The longer you wait to integrate, the more it hurts. The only remedy: integrate <strong>all the time</strong>, and let a machine check every single time.</p>
+  </div>
+  <aside class="notes">
+    Tell the story of release Friday: the six-week branch, the 40 conflicts, the build that only passes on Karim's workstation. Ask who has known a build that only one person knew how to run. Transition: CI is about making that ritual boring, repeatable and instant.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Definitions</span>
+  <h2>CI, CD and… <em>CD</em></h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <h3>Continuous integration</h3>
+      <p>Every commit is merged early and <strong>checked automatically</strong>: compilation, lint, tests. Within minutes you know whether you broke something.</p>
+    </div>
+    <div class="card">
+      <h3>Continuous delivery</h3>
+      <p>Every validated version is <strong>ready to deploy</strong>: image built, tagged, published. Deployment remains a human click.</p>
+    </div>
+    <div class="card teal">
+      <h3>Continuous deployment</h3>
+      <p>The click disappears: whatever passes the pipeline <strong>goes to production</strong> on its own. Requires solid tests and monitoring.</p>
+    </div>
+  </div>
+  <p class="small mt">Today: continuous integration in the morning, continuous delivery in the afternoon. Continuous deployment comes tomorrow with Kubernetes.</p>
+  <aside class="notes">
+    The two "CDs" are often confused. The difference comes down to one question: who presses the button? Continuous delivery = the human decides when; continuous deployment = the pipeline decides. Few teams need continuous deployment from day one.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Why</span>
+  <h2>Two simple ideas</h2>
+  <div class="cols">
+    <div>
+      <span class="big accent">10 min</span>
+      <h3>Fast feedback</h3>
+      <p>A bug found ten minutes after the commit is fixed in ten minutes: the context is still in your head. The same bug found three weeks later costs a day.</p>
+    </div>
+    <div>
+      <span class="big">1</span>
+      <h3>Small batches</h3>
+      <p>A twenty-line commit that breaks the pipeline is diagnosed at a glance. A two-thousand-line merge is not. CI naturally pushes towards small, frequent changes.</p>
+    </div>
+  </div>
+  <div class="callout teal">
+    <p>Team rule: a red pipeline on <code>main</code> is the <strong>top priority</strong>. Nothing else gets pushed until it is green again.</p>
+  </div>
+  <aside class="notes">
+    Ten minutes is the classic target for the total duration of a CI pipeline. Beyond that, people stop waiting and pile up commits. Link back to the DORA metrics from day 1: lead time and failure rate depend directly on the speed of feedback.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The stages</span>
+  <h2>The anatomy of a pipeline</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 250" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="19" fill="#14213D">
+        <rect x="10" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="90" y="102" text-anchor="middle" font-weight="600">Lint</text>
+        <text x="90" y="130" text-anchor="middle" font-size="15" fill="#7A8399">style, errors</text>
+
+        <rect x="200" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="280" y="102" text-anchor="middle" font-weight="600">Tests</text>
+        <text x="280" y="130" text-anchor="middle" font-size="15" fill="#7A8399">pytest</text>
+
+        <rect x="390" y="60" width="160" height="100" rx="14" fill="#14213D"/>
+        <text x="470" y="102" text-anchor="middle" font-weight="600" fill="#F7F4EE">Build</text>
+        <text x="470" y="130" text-anchor="middle" font-size="15" fill="#C9CFDD">Docker image</text>
+
+        <rect x="580" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="660" y="102" text-anchor="middle" font-weight="600">Scan</text>
+        <text x="660" y="130" text-anchor="middle" font-size="15" fill="#7A8399">vulnerabilities</text>
+
+        <rect x="770" y="60" width="160" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="850" y="102" text-anchor="middle" font-weight="600">Publish</text>
+        <text x="850" y="130" text-anchor="middle" font-size="15" fill="#7A8399">Gitea registry</text>
+
+        <rect x="960" y="60" width="150" height="100" rx="14" fill="none" stroke="#E8611A" stroke-width="2" stroke-dasharray="7 5"/>
+        <text x="1035" y="102" text-anchor="middle" font-weight="600" fill="#E8611A">Deploy</text>
+        <text x="1035" y="130" text-anchor="middle" font-size="15" fill="#7A8399">day 4</text>
+
+        <line x1="172" y1="110" x2="196" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="362" y1="110" x2="386" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="552" y1="110" x2="576" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="742" y1="110" x2="766" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+        <line x1="932" y1="110" x2="956" y2="110" stroke="#7A8399" stroke-width="2" marker-end="url(#arrP)"/>
+
+        <path d="M10 200 L740 200" stroke="#E8611A" stroke-width="2"/>
+        <text x="375" y="232" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">CONTINUOUS INTEGRATION · ON EVERY COMMIT AND PULL REQUEST</text>
+        <path d="M770 200 L930 200" stroke="#1F7A8C" stroke-width="2"/>
+        <text x="850" y="232" text-anchor="middle" font-size="15" fill="#1F7A8C" font-family="JetBrains Mono, monospace">DELIVERY · ON MAIN</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">Each stage runs only if the previous one succeeded. Fastest first: a ten-second lint saves you from waiting for a three-minute build for nothing.</p>
+  <aside class="notes">
+    Walk through the six stages from left to right. Stress the order: cheapest checks first. Publishing happens only on main, not on pull requests, so the registry does not fill up with draft images. The dotted deployment box is for tomorrow.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">What each stage checks</span>
+  <h2>Questions, not tools</h2>
+  <table>
+    <tr><th>Stage</th><th>The question</th><th>Our tool</th><th>Target time</th></tr>
+    <tr><td>Lint</td><td>Does the code follow the team's rules?</td><td><code>flake8</code></td><td>10 s</td></tr>
+    <tr><td>Tests</td><td>Is the expected behaviour preserved?</td><td><code>pytest</code></td><td>1 min</td></tr>
+    <tr><td>Build</td><td>Can we produce an identical artifact every time?</td><td><code>docker build</code></td><td>2 min</td></tr>
+    <tr><td>Scan</td><td>Does the artifact ship with known vulnerabilities?</td><td><code>trivy</code></td><td>30 s</td></tr>
+    <tr><td>Publish</td><td>Is the artifact findable, versioned, immutable?</td><td>Gitea registry</td><td>30 s</td></tr>
+  </table>
+  <p class="small">Tools change from one project to the next, the questions stay the same. A Java pipeline swaps flake8 for Checkstyle and pytest for JUnit; the structure does not move.</p>
+  <aside class="notes">
+    The point of this slide is to separate the notion of a stage from the tools. Ask the room: in your projects, who answers the question "is the artifact findable"? Often nobody. Note the durations: they add up to the ten-minute target.
+  </aside>
+</section>
+
+<!-- ============================ PART 2 ============================ -->
+<section class="dark part" data-photo="keyboard.jpg">
+  <div class="num">Part 2 / 4</div>
+  <h2>Gitea Actions</h2>
+  <p>A YAML file in the repository, a runner that listens: the CI/CD engine built into our forge.</p>
+  <aside class="notes">Now into the tool. Warn them: the syntax is that of GitHub Actions, so anything they may have seen elsewhere applies. The next slides lead directly into the 10:45 lab.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Anatomy of a workflow</span>
+  <h2>A YAML file in the repository</h2>
+  <div class="cols">
+    <div>
+      <pre data-label=".gitea/workflows/ci.yml" class="xs"><code class="language-yaml">name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q -r requirements-dev.txt
+      - name: Lint
+        run: .venv/bin/flake8 .
+      - name: Tests
+        run: .venv/bin/pytest -q</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>on</dt><dd><strong>When</strong>: push, pull request, tag, schedule.</dd></div>
+        <div><dt>jobs</dt><dd><strong>What</strong>: independent units, run in parallel by default.</dd></div>
+        <div><dt>runs-on</dt><dd><strong>Where</strong>: the label of the runner that will pick up the job.</dd></div>
+        <div><dt>steps</dt><dd><strong>How</strong>: commands or actions, in order.</dd></div>
+      </dl>
+      <p class="small mt">File lives in <code>.gitea/workflows/</code>. Same syntax as GitHub Actions: examples carry over as is.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the file top to bottom with the room. Four questions: when, what, where, how. Stress that the workflow is versioned with the code: it evolves in the same pull requests, and it is reviewed like everything else.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The vocabulary</span>
+  <h2>The keywords that show up <em>everywhere</em></h2>
+  <div class="cols">
+    <dl class="kv">
+      <div><dt>uses</dt><dd>Calls a reusable <strong>action</strong>: <code>actions/checkout@v4</code> fetches the code.</dd></div>
+      <div><dt>run</dt><dd>Runs a shell command. Multi-line with <code>|</code>.</dd></div>
+      <div><dt>needs</dt><dd>Orders jobs: <code>build</code> waits for <code>test</code> to be green.</dd></div>
+      <div><dt>if</dt><dd>Condition: <code>gitea.event_name == 'push'</code>.</dd></div>
+    </dl>
+    <dl class="kv">
+      <div><dt>env</dt><dd>Environment variables, at workflow, job or step level.</dd></div>
+      <div><dt>secrets</dt><dd>Values encrypted on the Gitea side: <code>${{ secrets.REGISTRY_TOKEN }}</code>.</dd></div>
+      <div><dt>matrix</dt><dd>Runs the same job with several values: Python versions, operating systems.</dd></div>
+      <div><dt>artifacts</dt><dd>Files kept after the job: test report, binary.</dd></div>
+    </dl>
+  </div>
+  <div class="callout mt">
+    <p>The <code>${{ gitea.sha }}</code>, <code>${{ gitea.ref_name }}</code>, <code>${{ gitea.event_name }}</code> context describes the current event. <code>github.*</code> works too, for compatibility.</p>
+  </div>
+  <aside class="notes">
+    Do not go through everything: this slide is a reference, we will come back to it during the lab. Above all remember needs, if and secrets, which will be used this afternoon. Mention that the expressions in double curly braces are evaluated by Gitea before execution.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Under the hood</span>
+  <h2>Gitea and act_runner</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 290" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#E8611A"/></marker>
+        <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+      </defs>
+      <g font-size="18" fill="#14213D">
+        <rect x="10" y="90" width="150" height="100" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="85" y="132" text-anchor="middle" font-weight="600">Developer</text>
+        <text x="85" y="160" text-anchor="middle" font-size="15" fill="#7A8399">git push</text>
+
+        <rect x="240" y="30" width="300" height="225" rx="16" fill="#14213D"/>
+        <text x="390" y="68" text-anchor="middle" font-weight="600" fill="#F7F4EE" font-size="20">Gitea</text>
+        <rect x="262" y="90" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="116" text-anchor="middle" font-size="15" fill="#C9CFDD">reads .gitea/workflows/*.yml</text>
+        <rect x="262" y="142" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="168" text-anchor="middle" font-size="15" fill="#C9CFDD">job queue</text>
+        <rect x="262" y="194" width="256" height="40" rx="8" fill="#243052"/>
+        <text x="390" y="220" text-anchor="middle" font-size="15" fill="#C9CFDD">logs, statuses, artifacts</text>
+
+        <rect x="790" y="30" width="320" height="225" rx="16" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="950" y="68" text-anchor="middle" font-weight="600" font-size="20" fill="#E8611A">act_runner · your VM</text>
+        <rect x="812" y="90" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="116" text-anchor="middle" font-size="15">label: ubuntu-latest:host</text>
+        <rect x="812" y="142" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="168" text-anchor="middle" font-size="15">runs the steps, one by one</text>
+        <rect x="812" y="194" width="276" height="40" rx="8" fill="#FBE3D4"/>
+        <text x="950" y="220" text-anchor="middle" font-size="15">python3 · docker · trivy · node</text>
+
+        <line x1="162" y1="140" x2="236" y2="140" stroke="#7A8399" stroke-width="2" marker-end="url(#arrG)"/>
+        <text x="199" y="128" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">push</text>
+
+        <path d="M788 110 L544 110" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="98" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">"any job for me?"</text>
+        <path d="M544 160 L786 160" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="150" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">job + code + secrets</text>
+        <path d="M788 210 L544 210" stroke="#E8611A" stroke-width="2.5" marker-end="url(#arrA)"/>
+        <text x="665" y="200" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">logs, success / failure</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">The runner <strong>polls</strong> Gitea, never the other way round: it can run behind a firewall, with no open port. One Gitea, as many runners as you like.</p>
+  <aside class="notes">
+    The point to get across: Gitea only orchestrates, the runner does the work. The runner runs on your VM, so when a job is slow, it is your VM that is slow. Advantage of polling: no inbound network opening, the runner can be anywhere.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">act_runner</span>
+  <h2>Labels: <em>where</em> a job runs</h2>
+  <div class="cols">
+    <div>
+      <p>Each runner advertises <strong>labels</strong>. A job requests a label with <code>runs-on</code>. Gitea matches them.</p>
+      <table>
+        <tr><th>Label</th><th>Mode</th><th>The job runs…</th></tr>
+        <tr><td><code>ubuntu-latest:host</code></td><td>host</td><td>directly on the VM, with its tools</td></tr>
+        <tr><td><code>ubuntu-latest:docker://node:20</code></td><td>docker</td><td>inside a disposable container</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Host mode (our choice)</h3>
+      <ul class="tight">
+        <li>Docker, Python, trivy already there: nothing to install on each job.</li>
+        <li>Fast, easy to debug: commands can be replayed by hand.</li>
+        <li>Less isolated: a job can leave the machine dirty.</li>
+      </ul>
+      <h3 class="mt">Docker mode</h3>
+      <ul class="tight">
+        <li>Clean, reproducible environment on every job.</li>
+        <li>Building an image from inside a container requires Docker-in-Docker.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    In training we choose host mode to move fast and see what happens. In production, docker mode is the norm for isolation. Mention that a label can also target a system (windows, arm) or a capability (gpu).
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Registration</span>
+  <h2>Connecting a runner to Gitea</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="on the VM (already done by setup/act-runner)"><code class="language-bash"># 1. token: Gitea → Site Administration → Actions → Runners
+# 2. register the runner with its label
+act_runner register --no-interactive \
+  --instance http://gitea.formini.local:3000 \
+  --token &lt;TOKEN&gt; \
+  --name vm-amina \
+  --labels ubuntu-latest:host
+
+# 3. run it as a service
+sudo systemctl enable --now act_runner
+journalctl -u act_runner -f</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>instance</dt><dd>The Gitea URL, the one you use in the browser.</dd></div>
+        <div><dt>token</dt><dd>Registration token, global, per organization or per repository.</dd></div>
+        <div><dt>labels</dt><dd>What this runner can do. Must match <code>runs-on</code>.</dd></div>
+      </dl>
+      <div class="callout teal">
+        <p>Check: <strong>Repository → Settings → Actions → Runners</strong>. A green dot, otherwise the job will stay "waiting" forever.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The runners are already registered on the VMs by the setup script. Show the list of runners and their labels in the Gitea admin: it is the first place to look when a job does not start. A waiting job with no free runner stays waiting indefinitely.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Reading a run</span>
+  <h2>Where to look when it's red</h2>
+  <ol class="steps">
+    <li><strong>The repository's Actions tab</strong> lists runs per workflow, with the commit and branch that triggered them.</li>
+    <li><strong>The failed job</strong> is marked with a cross. One click opens the steps; only the faulty step is expanded.</li>
+    <li><strong>The last line of the log</strong> almost always says why. Work upwards from there, not from the beginning.</li>
+    <li><strong>Replay locally</strong> the exact command of the step on the VM: same tool, same directory, same result.</li>
+  </ol>
+  <div class="callout">
+    <p>A job that is <em>waiting</em> rather than <em>failed</em> is not a bug in the code: it is a missing runner or a label that does not match.</p>
+  </div>
+  <aside class="notes">
+    Show a real run in the interface: navigation, expanding steps, searching the log. Distinguish the three states: waiting, running, finished. The classic trap this morning will be the job stuck waiting because the runner went down.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Guided lab · 10:45 – 12:00</span>
+  <h2>A first pipeline that tests every commit</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Enable Actions</strong> on <code>formini-tasks</code>: Settings → Repository → Actions.</li>
+        <li><strong>Check the runner</strong> of your VM: it must show as online in Settings → Actions → Runners.</li>
+        <li><strong>Write</strong> <code>.gitea/workflows/ci.yml</code> with a <code>test</code> job: checkout, venv, flake8, pytest.</li>
+        <li><strong>Push</strong> to a branch, open a pull request, watch the run turn green.</li>
+        <li><strong>Break a test</strong> on purpose: the PR shows a red cross. Fix, push again, check again.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal">
+        <p><strong>Lab sheet:</strong> <code>ateliers/jour3-cicd/README.md</code>, part 1</p>
+      </div>
+      <h3>Success criteria</h3>
+      <ul class="tight">
+        <li>A green run on the PR, then on <code>main</code> after merging.</li>
+        <li>A red run whose cause you can read.</li>
+        <li>Under two minutes per run.</li>
+      </ul>
+      <p class="small mt">Bonus: add a step that publishes <code>report.xml</code> as an artifact.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk around. Expected failures: YAML indentation, runner offline, forgetting to enable Actions on the repository, flake8 complaining about a line that is too long. Point out that the red cross appears directly in the PR: the reviewer no longer needs to run the tests themselves.
+  </aside>
+</section>
+
+<!-- ============================ PART 3 ============================ -->
+<section class="dark part" data-photo="padlock.jpg">
+  <div class="num">Part 3 / 4</div>
+  <h2>Secrets and security</h2>
+  <p>How a pipeline handles passwords without ever showing them, and what it checks before delivering.</p>
+  <aside class="notes">Back from lunch. Ask who still has a red run they do not understand: fix it in front of everyone in two minutes before moving on. Then announce: secrets, scanning, branch protection.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Secrets</span>
+  <h2>Never in the code. <em>Never.</em></h2>
+  <div class="cols">
+    <div>
+      <h3>What counts as a secret</h3>
+      <ul class="tight">
+        <li>Access tokens for the registry, the API, the cloud.</li>
+        <li>Database passwords.</li>
+        <li>Private SSH keys, certificates.</li>
+      </ul>
+      <h3 class="mt">What happens otherwise</h3>
+      <p>A committed secret is in the history <strong>forever</strong>, even after deletion. On a public forge, it is exploited within minutes.</p>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>.env</dt><dd>Local only, and in <code>.gitignore</code> from the very first commit.</dd></div>
+        <div><dt>Gitea</dt><dd>Encrypted secrets, defined per repository or per organization, never readable again.</dd></div>
+        <div><dt>Logs</dt><dd>Gitea masks the value with <code>***</code> if it shows up in any output.</dd></div>
+        <div><dt>Rotation</dt><dd>An exposed secret gets revoked and replaced, it does not get "hidden".</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    True story to tell: AWS keys pushed to GitHub, a bill of several thousand euros the next morning, bots scan commits continuously. Stress "forever": git rm is not enough, you have to rewrite the history and above all revoke the secret.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Secrets in Gitea</span>
+  <h2>Declare, then use</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="ci.yml · build job"><code class="language-yaml">env:
+  REGISTRY: gitea.formini.local:3000
+
+steps:
+  - name: Log in to the registry
+    run: |
+      echo "${{ secrets.REGISTRY_TOKEN }}" \
+        | docker login $REGISTRY \
+            -u "${{ secrets.REGISTRY_USER }}" \
+            --password-stdin</code></pre>
+    </div>
+    <div>
+      <ol class="steps">
+        <li><strong>Create a token</strong>Profile → Settings → Applications, <em>package: write</em> permission.</li>
+        <li><strong>Declare the secrets</strong>Repository → Settings → Actions → Secrets: <code>REGISTRY_USER</code>, <code>REGISTRY_TOKEN</code>.</li>
+        <li><strong>Read with <code>${{ secrets.NAME }}</code></strong>The value never appears in the interface or the logs.</li>
+      </ol>
+      <p class="small"><code>--password-stdin</code> keeps the token out of the process list.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo: create the token, declare it, launch a run that echoes it to show the asterisks. Then delete that step: we do not leave an echo of a secret lying around, even masked. An organization secret is shared by all the team's repositories, handy for the registry.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Scanning</span>
+  <h2>Three safety nets</h2>
+  <div class="cols-3">
+    <div class="card">
+      <h3>Code quality</h3>
+      <p><code>flake8</code> catches silly mistakes: unused variable, missing import, dead code. Ten seconds, zero serious false positives.</p>
+    </div>
+    <div class="card accent">
+      <h3>Dependencies</h3>
+      <p><code>pip-audit</code> compares <code>requirements.txt</code> against known vulnerability databases. The flaw rarely comes from your code, often from a library.</p>
+    </div>
+    <div class="card teal">
+      <h3>Image</h3>
+      <p><code>trivy</code> scans the whole Docker image: base system, packages, Python libraries. It blocks the pipeline if a critical flaw is fixable.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>Scanning is only useful if it <strong>blocks</strong>. A report nobody reads protects against nothing: <code>--exit-code 1</code> turns the scan into a gate, not an opinion.</p>
+  </div>
+  <aside class="notes">
+    Three levels: the code, the dependencies, the image. Ask which level is most often forgotten: the image, because nobody thinks about the base OS. The keyword is block: the scan must have veto power over publication.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Trivy</span>
+  <h2>Scanning an image in practice</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># overview, human-readable
+trivy image gitea.formini.local:3000/equipe-a/formini-tasks:a1b2c3d
+
+# in the pipeline: block only on fixable critical findings
+trivy image \
+  --severity CRITICAL \
+  --ignore-unfixed \
+  --exit-code 1 \
+  gitea.formini.local:3000/equipe-a/formini-tasks:a1b2c3d</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>severity</dt><dd>Levels considered: CRITICAL first, HIGH later.</dd></div>
+        <div><dt>ignore-unfixed</dt><dd>Ignores flaws with no fix available.</dd></div>
+        <div><dt>exit-code</dt><dd>Non-zero if a flaw is found: the step fails.</dd></div>
+      </dl>
+      <p class="small">Common remedy: rebuild on an up-to-date base image.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo on yesterday's image: show the trivy table, the number of flaws per severity, then the blocking command. Explain ignore-unfixed: without it, the pipeline would be permanently red because of base-system flaws with no fix available.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Branch protection</span>
+  <h2>The pipeline, guardian of <em>main</em></h2>
+  <div class="cols wide-left">
+    <div class="diagram">
+      <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="16" fill="#14213D">
+          <rect x="10" y="10" width="300" height="280" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+          <text x="30" y="42" font-weight="600" font-size="17">PR #12 · feature/export-csv</text>
+          <line x1="30" y1="56" x2="290" y2="56" stroke="#D9D3C7"/>
+          <circle cx="42" cy="86" r="9" fill="#3A7D44"/><text x="62" y="92">test · passed</text>
+          <circle cx="42" cy="122" r="9" fill="#3A7D44"/><text x="62" y="128">build · passed</text>
+          <circle cx="42" cy="158" r="9" fill="#3A7D44"/><text x="62" y="164">1 approval · Karim</text>
+          <rect x="30" y="200" width="260" height="46" rx="10" fill="#14213D"/>
+          <text x="160" y="229" text-anchor="middle" fill="#F7F4EE" font-weight="600">Merge</text>
+          <text x="160" y="276" text-anchor="middle" font-size="13" fill="#7A8399" font-family="JetBrains Mono, monospace">ALL GREEN</text>
+
+          <rect x="330" y="10" width="300" height="280" rx="14" fill="none" stroke="#B8322A" stroke-width="2"/>
+          <text x="350" y="42" font-weight="600" font-size="17">PR #13 · fix/timeout</text>
+          <line x1="350" y1="56" x2="610" y2="56" stroke="#D9D3C7"/>
+          <circle cx="362" cy="86" r="9" fill="#B8322A"/><text x="382" y="92">test · failed</text>
+          <circle cx="362" cy="122" r="9" fill="#D9D3C7"/><text x="382" y="128" fill="#7A8399">build · skipped</text>
+          <circle cx="362" cy="158" r="9" fill="#D9D3C7"/><text x="382" y="164" fill="#7A8399">0 approvals</text>
+          <rect x="350" y="200" width="260" height="46" rx="10" fill="none" stroke="#D9D3C7" stroke-width="2"/>
+          <text x="480" y="229" text-anchor="middle" fill="#7A8399" font-weight="600">Merge blocked</text>
+          <text x="480" y="276" text-anchor="middle" font-size="13" fill="#B8322A" font-family="JetBrains Mono, monospace">REQUIRED STATUS MISSING</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <ol class="steps">
+        <li><strong>Repository → Settings → Branches</strong>, protect <code>main</code>.</li>
+        <li><strong>Forbid direct pushes</strong>, require one approval.</li>
+        <li><strong>Require the</strong> <code>test</code> <strong>status</strong>: merging waits for the pipeline.</li>
+      </ol>
+      <p class="small">Combined with yesterday's code review: a human <em>and</em> a machine validate every change.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the two PRs side by side. The greyed-out merge button is the whole course made concrete: nobody can bypass the tests, not even the admin. Do the setup live in the branch settings, and note the exact name of the status: CI / test (pull_request), hence the CI / test* pattern.
+  </aside>
+</section>
+
+<!-- ============================ PART 4 ============================ -->
+<section class="dark part" data-photo="container-ship.jpg">
+  <div class="num">Part 4 / 4</div>
+  <h2>Delivery strategies</h2>
+  <p>Naming versions, publishing at the right moment, separating environments.</p>
+  <aside class="notes">Last theory part, short. The goal is to give the vocabulary of tags and environments before the challenge, which asks for a versioned image to be published.</aside>
+</section>
+
+<section>
+  <span class="eyebrow">Naming images</span>
+  <h2>A tag says <em>where</em> the image comes from</h2>
+  <table>
+    <tr><th>Tag</th><th>Example</th><th>Produced by</th><th>Used for</th></tr>
+    <tr><td>Short SHA</td><td><code>:a1b2c3d</code></td><td>every push to <code>main</code></td><td>finding the exact commit, deploying to test</td></tr>
+    <tr><td>Semver</td><td><code>:v1.4.2</code></td><td>a <code>v*</code> Git tag</td><td>shipped versions, changelog, rollback</td></tr>
+    <tr><td>latest</td><td><code>:latest</code></td><td>the latest build of <code>main</code></td><td>local convenience. Never in production.</td></tr>
+  </table>
+  <div class="cols mt">
+    <div>
+      <h3>Immutable</h3>
+      <p>One tag, one image, forever. You never "rewrite" <code>v1.4.2</code>: you publish <code>v1.4.3</code>.</p>
+    </div>
+    <div>
+      <h3>Traceable</h3>
+      <p>From the container in production to the commit: <code>docker inspect</code> → tag → <code>git show a1b2c3d</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    The latest trap: two machines pulling latest an hour apart do not have the same image, and nobody knows. Semver: major.minor.patch, incremented according to the nature of the change. Tomorrow, Kubernetes will always deploy a precise tag.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Publishing on a tag</span>
+  <h2>A workflow for <em>releases</em></h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label=".gitea/workflows/release.yml" class="xs"><code class="language-yaml">name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: gitea.formini.local:3000
+      IMAGE: gitea.formini.local:3000/equipe-a/formini-tasks
+      VERSION: ${{ gitea.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t $IMAGE:$VERSION .
+      - run: trivy image --severity CRITICAL --ignore-unfixed
+             --exit-code 1 $IMAGE:$VERSION
+      - run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login
+             $REGISTRY -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+      - run: docker push $IMAGE:$VERSION</code></pre>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash">git tag -a v1.0.0 -m "First release"
+git push origin v1.0.0</code></pre>
+      <dl class="kv">
+        <div><dt>tags: v*</dt><dd>Triggers only on a tag that starts with <code>v</code>.</dd></div>
+        <div><dt>ref_name</dt><dd>The tag name becomes the image tag.</dd></div>
+      </dl>
+      <p class="small">The tag is set by a human: that is the decision to ship.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    One workflow per intent: ci.yml checks, release.yml ships. Show that a tag is a named, immutable commit. Shipping takes two commands, and the versioned image is in the registry two minutes later.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Environments</span>
+  <h2>The same image, from test to production</h2>
+  <div class="flow">
+    <div><b>Pull request</b>lint, tests. Nothing is published.</div>
+    <div class="on"><b>main</b><code>:sha</code> image published. Deployed to <em>test</em>.</div>
+    <div><b>Tag v*</b><code>:vX.Y.Z</code> image. Deployed to <em>staging</em>.</div>
+    <div><b>Production</b>the same <code>:vX.Y.Z</code> image, promoted, not rebuilt.</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Build once, deploy everywhere</h3>
+      <p>What changes between environments is the <strong>configuration</strong> (variables, secrets), never the image. What was tested is exactly what gets shipped.</p>
+    </div>
+    <div>
+      <h3>Promotion</h3>
+      <p>Going to production is not a build: it is pointing the environment at an already validated tag. Rolling back is pointing at the previous one.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    The "build once, deploy many" principle. Link to configuration through environment variables seen yesterday with Compose: DATABASE_URL changes, the image does not. Tomorrow with Kubernetes, rolling back will literally mean putting the previous tag back.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Good practices</span>
+  <h2>A pipeline the team <em>loves</em></h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>Fast</strong>: under ten minutes, lightweight stages first, independent jobs in parallel.</li>
+        <li><strong>Deterministic</strong>: pinned versions in <code>requirements.txt</code>, tagged base image, no implicit "latest version".</li>
+        <li><strong>Readable</strong>: a name per step, a job per responsibility, a workflow per intent.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><strong>Reproducible locally</strong>: each step is a command you can type on your own machine.</li>
+        <li><strong>Cache</strong>: reuse dependencies from one run to the next (<code>actions/cache</code>, Docker layers).</li>
+        <li><strong>Matrix</strong>: test several Python versions with a single declared job.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout teal">
+    <p>The pipeline is code: it gets reviewed in pull requests, refactored, and documented. A <code>README</code> that explains how to ship is as important as the code being shipped.</p>
+  </div>
+  <aside class="notes">
+    Summary slide before the challenge. Ask the room which practice they miss most in their current projects. Warn them: the challenge asks them to chain build, scan and publication; aim first for a pipeline that works, optimize afterwards.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Independent challenge · 14:00 – 15:30 · per team</span>
+  <h2>Automatic build, scan and publication</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Secrets:</strong> <em>package: write</em> token declared as <code>REGISTRY_USER</code> / <code>REGISTRY_TOKEN</code>.</li>
+        <li><strong>Build job</strong> after <code>test</code>, on push to <code>main</code> only: image tagged with the short SHA.</li>
+        <li><strong>Scan steps</strong> (trivy, blocking on CRITICAL) and <strong>publish</strong>: <code>:sha</code> and <code>:latest</code>.</li>
+        <li><strong>Protect <code>main</code></strong>: <code>test</code> status required, one approval, no direct push.</li>
+        <li><strong>Ship</strong> <code>v1.0.0</code> with <code>release.yml</code>: the versioned image shows up in Packages.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Sheet:</strong> <code>ateliers/jour3-cicd/README.md</code>, part 2</p></div>
+      <h3>Success criteria</h3>
+      <ul class="tight">
+        <li>A push to <code>main</code> produces a <code>:sha</code> image in the registry.</li>
+        <li>A PR with a broken test cannot be merged.</li>
+        <li><code>docker pull …:v1.0.0</code> works from another VM.</li>
+      </ul>
+      <p class="small mt">Bonus: <code>pip-audit</code>, pip cache, Python matrix.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Form the same teams as yesterday. Visit each team at the docker login moment: that is where badly scoped tokens and registries not declared as insecure reveal themselves. Around 15:15, one team shows its complete run and its Packages page on the projector.
+  </aside>
+</section>
+
+<!-- ============================ WRAP-UP ============================ -->
+<section>
+  <span class="eyebrow">Wrap-up · 15:30 – 16:00</span>
+  <h2>What to take away from day 3</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <span class="num">1</span>
+      <h3>Every commit is checked</h3>
+      <p>Lint, tests, build, scan: a machine does it, every time, in under ten minutes. Red on <code>main</code> = top priority.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">2</span>
+      <h3>The pipeline is code</h3>
+      <p>A versioned YAML file, a runner that listens, secrets outside the repository. Every step can be replayed by hand.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">3</span>
+      <h3>Build once</h3>
+      <p>One immutable image per commit, one per version. Environments change the configuration, not the image.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p><strong>Tomorrow:</strong> infrastructure becomes code with Terraform and Ansible, then Kubernetes deploys the image your pipeline has just published. Leave your runners switched on.</p>
+  </div>
+  <aside class="notes">
+    Go round the room: one thing learned, one thing still unclear. Note the unclear points. Remind everyone that the VMs must stay on: the runners and the registry will be used tomorrow to pull images into Kubernetes.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Questions &amp; answers</div>
+  <h2>Thank you.</h2>
+  <p>Lab sheets, workflows and solutions: <code>formation-devops</code> repository on Gitea.<br>See you tomorrow at 09:00 for Terraform and Kubernetes.</p>
+  <aside class="notes">Stay available for ten minutes after the end for individual questions. Check one last time that the runners are on before leaving the room.</aside>
+  <p class="credits">Photos — Wikimedia Commons · assembly-line : Siyuwj (CC BY-SA 3.0) · library : Michael D Beckwith (CC BY 3.0) · conveyor : RICHI Manufacture (CC BY 4.0) · keyboard : Colin (CC BY-SA 4.0) · padlock : Partonez (CC BY-SA 4.0) · container-ship : Downtowngal (CC BY-SA 4.0)</p>
+</section>
+
+</div>
+</div>
+<script src="../../assets/vendor/reveal/reveal.js"></script>
+<script src="../../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../../assets/deck.js"></script>
+</body>
+</html>

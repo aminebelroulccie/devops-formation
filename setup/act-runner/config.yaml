@@ -1,0 +1,37 @@
+# Configuration act_runner — mode host (les jobs tournent directement sur la VM)
+log:
+  level: info
+
+runner:
+  file: /var/lib/act_runner/.runner
+  capacity: 2
+  timeout: 1h
+  insecure: false
+  fetch_timeout: 5s
+  fetch_interval: 2s
+  # Variables d'environnement visibles par tous les jobs
+  envs:
+    DOCKER_BUILDKIT: "1"
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # Labels : nom:host => exécution sur l'hôte (pas de conteneur)
+  labels:
+    - "ubuntu-latest:host"
+    - "ubuntu-22.04:host"
+
+cache:
+  enabled: true
+  dir: /var/lib/act_runner/cache
+  host: ""
+  port: 0
+
+container:
+  network: ""
+  privileged: false
+  options:
+  workdir_parent:
+  valid_volumes: []
+  docker_host: ""
+  force_pull: false
+
+host:
+  workdir_parent: /var/lib/act_runner/work

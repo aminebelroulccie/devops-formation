@@ -1,0 +1,6 @@
+# Copier en inventory.ini, remplacer l'IP par celle de `terraform output public_ip`.
+[web]
+15.188.42.17 ansible_user=ubuntu
+
+[web:vars]
+ansible_ssh_private_key_file=~/.ssh/id_ed25519

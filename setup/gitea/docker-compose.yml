@@ -1,0 +1,43 @@
+# Gitea pour la formation — à lancer sur la VM formateur
+#   docker compose up -d
+#   http://gitea.formini.local:3000  (ou http://<ip-formateur>:3000)
+#
+# Première visite : l'assistant d'installation est pré-rempli par les variables
+# ci-dessous ; créez le compte administrateur, puis lancez bootstrap.sh.
+services:
+  gitea:
+    image: gitea/gitea:1.22
+    container_name: gitea
+    restart: unless-stopped
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__server__DOMAIN: gitea.formini.local
+      GITEA__server__ROOT_URL: http://gitea.formini.local:3000/
+      GITEA__server__HTTP_PORT: "3000"
+      GITEA__server__SSH_PORT: "2222"
+      GITEA__server__SSH_DOMAIN: gitea.formini.local
+      GITEA__server__LFS_START_SERVER: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__service__REQUIRE_SIGNIN_VIEW: "false"
+      GITEA__actions__ENABLED: "true"
+      GITEA__actions__DEFAULT_ACTIONS_URL: github
+      GITEA__packages__ENABLED: "true"
+      GITEA__repository__DEFAULT_BRANCH: main
+      GITEA__repository__ENABLE_PUSH_CREATE_ORG: "true"
+      GITEA__webhook__ALLOWED_HOST_LIST: "*"
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__log__LEVEL: Info
+    volumes:
+      - ./data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "2222:22"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10

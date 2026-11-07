@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevOps Training · Formini</title>
+  <link rel="icon" href="../../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../../assets/fonts/fonts.css">
+  <style>
+    :root { --paper:#FFFFFF; --paper-2:#F4F6F9; --ink:#0B2545; --ink-2:#475569; --muted:#64748B; --line:#D5DBE4; --accent:#C9A227; --teal:#1F3F72; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:'Source Sans 3','Segoe UI',Helvetica,Arial,sans-serif; line-height:1.5; }
+    header { background:linear-gradient(100deg, rgba(11,37,69,0.97) 0%, rgba(11,37,69,0.88) 55%, rgba(11,37,69,0.6) 100%), url('../../assets/img/cover-team.jpg') center/cover; color:#fff; padding:56px 0 64px; }
+    .wrap { max-width:1040px; margin:0 auto; padding:0 24px; }
+    header img { height:40px; display:block; margin-bottom:40px; }
+    header .eyebrow { font-family:'Source Sans 3',sans-serif; font-weight:700; font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:#E1C45E; margin-bottom:14px; }
+    header .eyebrow::before { content:''; display:inline-block; width:28px; height:2px; background:#C9A227; vertical-align:middle; margin-right:12px; }
+    h1 { font-family:'Libre Baskerville',Georgia,serif; font-weight:700; font-size:50px; line-height:1.05; letter-spacing:-.02em; margin:0 0 18px; max-width:14ch; }
+    h1 em { font-style:italic; font-weight:400; color:#E1C45E; }
+    header p { max-width:52ch; color:#C9CFDD; font-size:18px; margin:0; }
+    header .meta { margin-top:28px; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#9AA3B8; }
+    header .meta span { margin-right:28px; }
+    header .meta span::before { content:''; display:inline-block; width:8px; height:8px; background:var(--accent); margin-right:10px; }
+    main { padding:56px 0 80px; }
+    h2 { font-family:'Libre Baskerville',Georgia,serif; font-weight:600; font-size:28px; margin:0 0 20px; }
+    .days { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; margin-bottom:56px; }
+    .day { display:block; text-decoration:none; color:inherit; border-top:3px solid var(--ink); padding:18px 0 8px; transition:border-color .15s; }
+    .day:hover { border-top-color:var(--accent); }
+    .day .n { font-family:'Libre Baskerville',Georgia,serif; font-size:40px; font-weight:700; line-height:1; color:var(--accent); letter-spacing:-.03em; }
+    .day .d { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:10px 0 8px; }
+    .day h3 { font-family:'Libre Baskerville',Georgia,serif; font-weight:600; font-size:22px; margin:0 0 8px; line-height:1.15; }
+    .day p { margin:0; color:var(--ink-2); font-size:15px; }
+    .day .links { margin-top:14px; font-size:13px; }
+    .day .links span { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:3px 10px; margin:0 6px 6px 0; color:var(--ink-2); }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:40px; }
+    .grid ul { list-style:none; padding:0; margin:0; }
+    .grid li { padding:10px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink-2); }
+    .grid li:last-child { border-bottom:1px solid var(--line); }
+    .grid li b { color:var(--ink); font-weight:600; }
+    code { font-family:'JetBrains Mono',monospace; font-size:.9em; background:var(--paper-2); border:1px solid var(--line); border-radius:5px; padding:1px 6px; }
+    kbd { font-family:'JetBrains Mono',monospace; font-size:.85em; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 7px; background:#fff; }
+    .lang-switch { position:absolute; top:28px; right:24px; font-family:'Source Sans 3',sans-serif; font-weight:700; font-size:12px; letter-spacing:.12em; text-transform:uppercase; } .lang-switch a { color:#fff; text-decoration:none; border:1px solid rgba(255,255,255,.5); border-radius:3px; padding:6px 12px; } .lang-switch a:hover { border-color:#E1C45E; color:#E1C45E; } header { position:relative; }
+    footer { border-top:1px solid var(--line); padding:24px 0 40px; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+    @media (max-width:720px){ h1{font-size:40px} .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<header>
+  <div class="lang-switch"><a href="../index.html">Version française</a></div>
+  <div class="wrap">
+    <img src="../../assets/formini-logo-light.svg" alt="Formini">
+    <div class="eyebrow">Hands-on training · 5 days · 30 hours</div>
+    <h1>DevOps <em>Training</em></h1>
+    <p>Build, automate, deploy and monitor an application with today's DevOps tools and practices. Theory, live demos and hands-on labs, from code to a monitored deployment.</p>
+    <div class="meta"><span>8 – 12 November 2026</span><span>09:00 – 16:00</span><span>Intermediate level</span></div>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <h2>The five days</h2>
+    <div class="days">
+      <a class="day" href="day1-devops-git.html">
+        <div class="n">01</div><div class="d">Sunday 8 November</div>
+        <h3>DevOps fundamentals and Git</h3>
+        <p>DevOps culture, essential Linux, key-based SSH, team Git and pull requests on Gitea.</p>
+        <div class="links"><span>30 slides</span><span>SSH lab</span><span>Git challenge</span></div>
+      </a>
+      <a class="day" href="day2-docker.html">
+        <div class="n">02</div><div class="d">Monday 9 November</div>
+        <h3>Containerisation with Docker</h3>
+        <p>Images, containers, efficient Dockerfiles, Docker Compose and the Gitea registry.</p>
+        <div class="links"><span>Dockerfile</span><span>Compose</span><span>Registry</span></div>
+      </a>
+      <a class="day" href="day3-cicd-gitea-actions.html">
+        <div class="n">03</div><div class="d">Tuesday 10 November</div>
+        <h3>CI/CD pipelines with Gitea Actions</h3>
+        <p>Continuous integration and delivery, act_runner, secrets, security scanning.</p>
+        <div class="links"><span>Workflow</span><span>Tests</span><span>Scan</span></div>
+      </a>
+      <a class="day" href="day4-iac-kubernetes.html">
+        <div class="n">04</div><div class="d">Wednesday 11 November</div>
+        <h3>Infrastructure as Code and Kubernetes</h3>
+        <p>Terraform on AWS, Ansible, Kubernetes: deployment, scaling, rolling updates.</p>
+        <div class="links"><span>Terraform</span><span>Ansible</span><span>kind</span></div>
+      </a>
+      <a class="day" href="day5-monitoring-final-project.html">
+        <div class="n">05</div><div class="d">Thursday 12 November</div>
+        <h3>Monitoring and final project</h3>
+        <p>Prometheus, Grafana, then the complete pipeline built and presented by each team.</p>
+        <div class="links"><span>Prometheus</span><span>Grafana</span><span>Presentations</span></div>
+      </a>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h2>While presenting</h2>
+        <ul>
+          <li><b><kbd>→</kbd> / <kbd>Espace</kbd></b> next slide, <kbd>←</kbd> previous</li>
+          <li><b><kbd>S</kbd></b> opens the speaker notes window (trainer script, timer)</li>
+          <li><b><kbd>F</kbd></b> full screen · <kbd>Esc</kbd> overview · <kbd>B</kbd> black screen</li>
+          <li><b><kbd>Alt</kbd> + clic</b> zooms into part of the slide</li>
+          <li><b>PDF export</b>: append <code>?print-pdf</code> to the URL, then Print → Save as PDF (Chrome/Edge)</li>
+        </ul>
+      </div>
+      <div>
+        <h2>The rest of the kit</h2>
+        <ul>
+          <li><b>French version</b> of the slides: <code>slides/</code> (same theme, same numbering)</li>
+          <li><b>Lab sheets</b> for participants (in French): <code>ateliers/jourN-…/README.md</code>, solutions in <code>solution/</code></li>
+          <li><b>Trainer guides</b>, minute by minute (in French): <code>guide-formateur/jourN.md</code></li>
+          <li><b>Running example</b> Formini Tasks: <code>app/formini-tasks/</code></li>
+          <li><b>Machine setup</b>, Gitea, runners, AWS: <code>setup/</code></li>
+          <li><b>Logo</b>: replace <code>assets/formini-logo.svg</code> and <code>formini-logo-light.svg</code> with the official files</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</main>
+<footer><div class="wrap">Formini · DevOps Training · Course material</div></footer>
+</body>
+</html>

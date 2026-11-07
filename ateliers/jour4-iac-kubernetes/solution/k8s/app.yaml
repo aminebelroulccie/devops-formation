@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasks
+  namespace: formini-tasks
+  annotations:
+    kubernetes.io/change-cause: "v1.0.0 - déploiement initial"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels: { app: tasks }
+  template:
+    metadata:
+      labels: { app: tasks }
+    spec:
+      containers:
+        - name: tasks
+          image: gitea.formini.local:3000/equipe-a/formini-tasks:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          env:
+            - name: APP_VERSION
+              value: "v1.0.0"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tasks-secret, key: POSTGRES_PASSWORD }
+            - name: DATABASE_URL
+              value: "postgresql://formini:$(POSTGRES_PASSWORD)@postgres:5432/tasks"
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+      # Si le dépôt d'images est privé : kubectl create secret docker-registry gitea-registry ...
+      # imagePullSecrets:
+      #   - name: gitea-registry

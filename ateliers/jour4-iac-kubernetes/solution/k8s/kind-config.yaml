@@ -1,0 +1,19 @@
+# kind create cluster --name formini --config kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Service NodePort 30080 -> http://localhost:8080 sur la VM
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+  - role: worker
+  - role: worker
+
+# Les nœuds lisent la configuration des registres dans /etc/containerd/certs.d
+# (le script deploy.sh y dépose l'autorisation du registre Gitea en HTTP).
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"

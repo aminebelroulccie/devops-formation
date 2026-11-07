@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Day 5 — Monitoring and final project · Formini</title>
+  <link rel="icon" href="../../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../../assets/theme.css">
+</head>
+<body data-deck="DevOps Training · Day 5 · Monitoring &amp; final project" data-assets="../../assets/">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COVER ============================ -->
+<section class="dark cover" data-photo="control-room.jpg">
+  <img class="logo plain" src="../../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">05<small>Day 5 / 5</small></div>
+  <h1>Monitoring <em>&amp;</em> final project</h1>
+  <p class="meta"><span>Thursday 12 November 2026</span><span>09:00 – 16:00</span><span>DevOps Training · 5 days</span></p>
+  <aside class="notes">
+    Last day. Welcome everyone and ask how yesterday's Kubernetes deployment ended: who still has a kind cluster running? Announce the programme: a morning on monitoring, then an afternoon entirely devoted to the final project and the presentations. Remind them that the teams formed on day 1 stay the same.
+  </aside>
+</section>
+
+<!-- ============================ WEEK ============================ -->
+<section>
+  <span class="eyebrow">The week at a glance</span>
+  <h2>Last piece: <em>seeing</em> what is running</h2>
+  <div class="flow">
+    <div><b>Day 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div><b>Day 2</b>Docker &amp; Compose</div>
+    <div><b>Day 3</b>CI/CD with Gitea Actions</div>
+    <div><b>Day 4</b>Terraform, Ansible, Kubernetes</div>
+    <div class="on"><b>Day 5</b>Prometheus, Grafana, final project</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>This morning</h3>
+      <p>Measure Formini Tasks with <strong>Prometheus</strong>, look at it in <strong>Grafana</strong>, and get notified when it breaks.</p>
+    </div>
+    <div>
+      <h3>This afternoon</h3>
+      <p>Each team assembles the <strong>complete chain</strong>: code → test → build → deploy → monitor, then presents it.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Link back to the DevOps cycle from day 1: we said that Monitor feeds Plan. Today we close the loop. Stress that the final project is not an exam but a demonstration of what everyone already knows how to do.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="library.jpg">
+  <span class="eyebrow">Today's programme</span>
+  <h2>Monitor, then put it all together</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>Observability, Prometheus, Grafana</strong>: theory and demonstration</span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Coffee break</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Guided lab</strong>: monitoring Formini Tasks, dashboard and alert</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Lunch break</span></li>
+    <li><span class="t">13:00 – 13:15</span><span><strong>Final project kick-off</strong>: brief, deliverables, grading grid</span></li>
+    <li><span class="t">13:15 – 15:00</span><span><strong>Final project in teams</strong>: the complete chain</span></li>
+    <li><span class="t">15:00 – 15:45</span><span><strong>Presentations</strong>: 10 to 15 minutes per team</span></li>
+    <li><span class="t">15:45 – 16:00</span><span>Wrap-up: training summary and feedback</span></li>
+  </ul>
+  <aside class="notes">
+    The afternoon schedule is tight: announce right now that presentations start at 15:00 sharp, whether a team is ready or not. That forces prioritisation, which is part of the exercise.
+  </aside>
+</section>
+
+<!-- ============================ PART 1: OBSERVABILITY / PROMETHEUS ============================ -->
+<section class="dark part" data-photo="monitors.jpg">
+  <div class="num">Part 1 / 4</div>
+  <h2>Prometheus</h2>
+  <p>Observability, metrics, the pull model and PromQL. Knowing what is happening in production without opening an SSH session.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Why monitor</span>
+  <h2>Deploying without watching is <em>hoping</em></h2>
+  <div class="cols">
+    <div>
+      <p>Last night, your application was running on Kubernetes. And now?</p>
+      <ul>
+        <li>Is it still responding? How fast?</li>
+        <li>How many users, how many errors?</li>
+        <li>Is the database full?</li>
+        <li>Who gets woken up at 3 a.m., and how?</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <p><strong>Monitoring:</strong> knowing whether the system is healthy. <strong>Observability:</strong> being able to understand <em>why</em> it is not, from what it emits.</p>
+      </div>
+      <p class="small">Time to restore service (the DORA metric from day 1) depends first of all on time to <strong>detect</strong>. You cannot fix what you cannot see.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask the room: how do you find out today that a service is down? The answer is often "a user calls". Goal for the morning: the machine should say it before the user does. Tie it back to the DORA MTTR seen on Monday.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The three pillars</span>
+  <h2>Logs, metrics, traces</h2>
+  <div class="cols-3">
+    <div class="card">
+      <h3>Logs</h3>
+      <p>Timestamped events, as text. Precise, verbose, expensive to store.</p>
+      <p class="small"><code>journalctl</code>, <code>docker logs</code>, <code>kubectl logs</code>, Loki.</p>
+    </div>
+    <div class="card accent">
+      <h3>Metrics</h3>
+      <p>Numbers over time. Compact, aggregatable, ideal for alerts and dashboards.</p>
+      <p class="small"><strong>Prometheus</strong>, Grafana. Today's topic.</p>
+    </div>
+    <div class="card teal">
+      <h3>Traces</h3>
+      <p>The journey of a request across services. Essential with microservices.</p>
+      <p class="small">OpenTelemetry, Jaeger, Tempo.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>Always start with <strong>metrics</strong>: they are cheap and answer "is it OK?". Logs and traces then answer "why?".</p>
+  </div>
+  <aside class="notes">
+    Metaphor: metrics are the car's dashboard, logs are the service logbook, traces are the dashcam. There is no time to cover all three today; we pick metrics because they are what triggers alerts.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Measure what?</span>
+  <h2>The four <em>golden signals</em></h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 250" xmlns="http://www.w3.org/2000/svg">
+      <g font-size="20" fill="#14213D">
+        <rect x="10" y="20" width="260" height="190" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="140" y="62" text-anchor="middle" font-weight="600">Latency</text>
+        <text x="140" y="95" text-anchor="middle" font-size="16" fill="#7A8399">response time</text>
+        <text x="140" y="150" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">http_request_duration</text>
+        <text x="140" y="175" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">_seconds (p95)</text>
+
+        <rect x="290" y="20" width="260" height="190" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="420" y="62" text-anchor="middle" font-weight="600">Traffic</text>
+        <text x="420" y="95" text-anchor="middle" font-size="16" fill="#7A8399">requests per second</text>
+        <text x="420" y="150" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">rate(http_requests</text>
+        <text x="420" y="175" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">_total[5m])</text>
+
+        <rect x="570" y="20" width="260" height="190" rx="14" fill="#14213D"/>
+        <text x="700" y="62" text-anchor="middle" font-weight="600" fill="#F7F4EE">Errors</text>
+        <text x="700" y="95" text-anchor="middle" font-size="16" fill="#C9CFDD">share of 5xx responses</text>
+        <text x="700" y="150" text-anchor="middle" font-size="15" fill="#F8A77A" font-family="JetBrains Mono, monospace">status=~"5.."</text>
+        <text x="700" y="175" text-anchor="middle" font-size="15" fill="#F8A77A" font-family="JetBrains Mono, monospace">/ total</text>
+
+        <rect x="850" y="20" width="260" height="190" rx="14" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="980" y="62" text-anchor="middle" font-weight="600" fill="#E8611A">Saturation</text>
+        <text x="980" y="95" text-anchor="middle" font-size="16" fill="#7A8399">CPU, memory, disk</text>
+        <text x="980" y="150" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">node_exporter</text>
+        <text x="980" y="175" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">cAdvisor</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">Model taken from Google's <em>Site Reliability Engineering</em> book. Four signals are enough to describe the health of a service as its users see it.</p>
+  <aside class="notes">
+    These four signals structure the dashboard we build at 11:00. Latency, traffic and errors come from the application itself; saturation comes from the machine and the containers. Point out that Formini Tasks already exposes the first three.
+  </aside>
+</section>
+
+<section data-side-photo="harbor-night.jpg">
+  <span class="eyebrow">SLI, SLO</span>
+  <h2>Defining what "it works" means</h2>
+  <dl class="kv">
+    <div><dt>SLI</dt><dd>Service level <strong>indicator</strong>. A measurement: share of requests that succeed in under 300 ms.</dd></div>
+    <div><dt>SLO</dt><dd><strong>Objective</strong> for that indicator: 99.5% over a rolling 30 days.</dd></div>
+    <div><dt>Error budget</dt><dd>What is left: 0.5%, roughly 3h36 of downtime per month. As long as some remains, we keep deploying.</dd></div>
+    <div><dt>Alert</dt><dd>Fires when the budget is <strong>burning too fast</strong>, not on the first error.</dd></div>
+  </dl>
+  <div class="callout mt">
+    <p>An alert must be <strong>actionable</strong>: if nobody does anything when it rings, it should be removed. Ignored alerts kill useful ones.</p>
+  </div>
+  <aside class="notes">
+    No need to go deep into SRE, but set the vocabulary. The key point: alert on a symptom the user sees (errors, latency), not on a cause (CPU at 80%). CPU belongs on the dashboard, not on the on-call engineer's phone.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Architecture</span>
+  <h2>Prometheus <em>fetches</em> the metrics</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker>
+        <marker id="a5o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8611A"/></marker>
+      </defs>
+      <g font-size="19" fill="#14213D">
+        <rect x="10" y="20" width="250" height="72" rx="12" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="135" y="52" text-anchor="middle" font-weight="600">Formini Tasks</text>
+        <text x="135" y="78" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">web:5000/metrics</text>
+
+        <rect x="10" y="114" width="250" height="72" rx="12" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="135" y="146" text-anchor="middle" font-weight="600">node_exporter</text>
+        <text x="135" y="172" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">:9100/metrics · the VM</text>
+
+        <rect x="10" y="208" width="250" height="72" rx="12" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="135" y="240" text-anchor="middle" font-weight="600">cAdvisor</text>
+        <text x="135" y="266" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">:8080/metrics · containers</text>
+
+        <rect x="430" y="90" width="260" height="120" rx="14" fill="#14213D"/>
+        <text x="560" y="135" text-anchor="middle" font-weight="600" fill="#F7F4EE">Prometheus</text>
+        <text x="560" y="162" text-anchor="middle" font-size="14" fill="#C9CFDD">scrape · storage · PromQL</text>
+        <text x="560" y="186" text-anchor="middle" font-size="14" fill="#C9CFDD">alerting rules</text>
+
+        <rect x="860" y="30" width="250" height="90" rx="14" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="985" y="68" text-anchor="middle" font-weight="600" fill="#E8611A">Grafana</text>
+        <text x="985" y="96" text-anchor="middle" font-size="14" fill="#7A8399">dashboards</text>
+
+        <rect x="860" y="180" width="250" height="90" rx="14" fill="none" stroke="#1F7A8C" stroke-width="2"/>
+        <text x="985" y="218" text-anchor="middle" font-weight="600" fill="#1F7A8C">Alertmanager</text>
+        <text x="985" y="246" text-anchor="middle" font-size="14" fill="#7A8399">email, Slack, phone</text>
+
+        <line x1="426" y1="130" x2="264" y2="56" stroke="#7A8399" stroke-width="2" marker-end="url(#a5)"/>
+        <line x1="426" y1="150" x2="264" y2="150" stroke="#7A8399" stroke-width="2" marker-end="url(#a5)"/>
+        <line x1="426" y1="170" x2="264" y2="244" stroke="#7A8399" stroke-width="2" marker-end="url(#a5)"/>
+        <text x="345" y="110" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">pull / 15s</text>
+
+        <line x1="694" y1="120" x2="856" y2="75" stroke="#E8611A" stroke-width="2" marker-end="url(#a5o)"/>
+        <text x="775" y="80" text-anchor="middle" font-size="14" fill="#E8611A" font-family="JetBrains Mono, monospace">PromQL queries</text>
+        <line x1="694" y1="180" x2="856" y2="225" stroke="#7A8399" stroke-width="2" marker-end="url(#a5)"/>
+        <text x="775" y="225" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">alerts</text>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">
+    Key point: the pull model. Applications send nothing; they expose a text page at /metrics and Prometheus comes to read it every 15 seconds. Benefits: a target that disappears is detected (the up metric drops to 0), and no network configuration is needed on the application side. Exporters translate whatever has no native /metrics endpoint.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">The exposition format</span>
+  <h2>A text page a human can read</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="curl http://localhost:5000/metrics"><code class="language-text"># HELP http_requests_total Number of HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",endpoint="list_tasks",status="200"} 1842.0
+http_requests_total{method="POST",endpoint="create_task",status="201"} 97.0
+http_requests_total{method="GET",endpoint="get_task",status="404"} 12.0
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{endpoint="list_tasks",le="0.05"} 1790.0
+http_request_duration_seconds_bucket{endpoint="list_tasks",le="0.1"} 1838.0
+http_request_duration_seconds_bucket{endpoint="list_tasks",le="+Inf"} 1842.0
+http_request_duration_seconds_sum{endpoint="list_tasks"} 31.7
+# TYPE tasks_open gauge
+tasks_open 14.0</code></pre>
+    </div>
+    <div>
+      <ul class="tight">
+        <li><strong>Name</strong>: what is measured, unit included.</li>
+        <li><strong>Labels</strong>: the dimensions. Each combination is a series.</li>
+        <li><strong>Value</strong>: a number, timestamped at scrape time.</li>
+      </ul>
+      <p class="small">Exposed by <code>prometheus_client</code>: about ten lines in <code>app.py</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Live demo: curl the /metrics endpoint of the application started with compose. Show that it is plain text, hence easy to debug. Open app.py and show the three objects Counter, Histogram, Gauge and the after_request middleware. Beware of high-cardinality labels: never put a user ID in a label.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Metric types</span>
+  <h2>Counter, gauge, histogram</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <h3>Counter</h3>
+      <p>Only ever goes <strong>up</strong>. Requests, errors, bytes sent.</p>
+      <p class="small">Never read its raw value: look at its <em>rate</em> with <code>rate()</code>.</p>
+    </div>
+    <div class="card teal">
+      <h3>Gauge</h3>
+      <p>Goes up and down. Temperature, memory in use, <strong>open tasks</strong>.</p>
+      <p class="small">Read directly. <code>tasks_open</code> is one.</p>
+    </div>
+    <div class="card">
+      <h3>Histogram</h3>
+      <p>Distributes durations into cumulative <strong>buckets</strong> (<code>le</code>). Latencies, sizes.</p>
+      <p class="small">Enables percentiles with <code>histogram_quantile()</code>.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>Naming rule: <code>_total</code> for counters, the unit in the name (<code>_seconds</code>, <code>_bytes</code>), low-cardinality labels.</p>
+  </div>
+  <aside class="notes">
+    Insist on the counter: beginners plot http_requests_total directly and get a curve that climbs forever. What matters is the derivative: rate(). For the histogram, explain that buckets are cumulative, hence the le label (less or equal).
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">PromQL</span>
+  <h2>Five expressions that cover 80% of needs</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="promql"><code class="language-text"># 1. is the target responding? (1 = yes, 0 = no)
+up{job="formini-tasks"}
+
+# 2. traffic: requests per second, smoothed over 5 min
+sum(rate(http_requests_total[5m]))
+
+# 3. per endpoint
+sum by (endpoint) (rate(http_requests_total[5m]))
+
+# 4. error rate (in %)
+100 * sum(rate(http_requests_total{status=~"5.."}[5m]))
+    / sum(rate(http_requests_total[5m]))
+
+# 5. p95 latency (seconds)
+histogram_quantile(0.95,
+  sum by (le) (rate(http_request_duration_seconds_bucket[5m])))</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>rate()</dt><dd>Per-second rate of a counter, over a window.</dd></div>
+        <div><dt>sum by</dt><dd>Aggregates series while keeping one label.</dd></div>
+        <div><dt>=~</dt><dd>Regular expression selector.</dd></div>
+        <div><dt>histogram_quantile</dt><dd>Percentile computed from the <code>le</code> buckets.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Demo in the Prometheus UI (port 9090), Graph tab. Type the five expressions in order, with the traffic generator running in the background. Take the application down (docker compose stop web) and show up dropping to 0 in under 30 seconds.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Exporters</span>
+  <h2>Measuring the machine and the containers</h2>
+  <div class="cols">
+    <div>
+      <h3>node_exporter</h3>
+      <p><strong>System</strong> metrics: CPU, memory, disk, network, load.</p>
+      <pre data-label="promql"><code class="language-text"># CPU used (%)
+100 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100
+# Available memory (%)
+node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100
+# Disk space left on /
+node_filesystem_avail_bytes{mountpoint="/"}</code></pre>
+    </div>
+    <div>
+      <h3>cAdvisor</h3>
+      <p><strong>Container</strong> metrics: CPU and memory per container, restarts.</p>
+      <pre data-label="promql"><code class="language-text"># CPU per container
+sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[5m]))
+# Memory per container
+container_memory_working_set_bytes{name=~"formini.*"}</code></pre>
+      <p class="small">On Kubernetes, cAdvisor is built into the kubelet; add <code>kube-state-metrics</code> for the state of the objects.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Exporters exist for almost everything: PostgreSQL, Redis, nginx, Gitea itself. Show the targets list in Prometheus (Status, Targets): every green line is a scraped exporter. This is the Saturation signal of the golden signals.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Alerts</span>
+  <h2>Being notified <em>before</em> the user</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="prometheus/alerts.yml" class="sm"><code class="language-yaml">groups:
+  - name: formini-tasks
+    rules:
+      - alert: AppDown
+        expr: up{job="formini-tasks"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Formini Tasks is no longer responding"
+
+      - alert: HighErrorRate
+        expr: |
+          100 * sum(rate(http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(http_requests_total[5m])) > 5
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 5% of 5xx errors"</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>expr</dt><dd>A PromQL query. True = pending alert.</dd></div>
+        <div><dt>for</dt><dd>How long it must stay true before <strong>firing</strong>. Avoids false positives.</dd></div>
+        <div><dt>labels</dt><dd>Severity, team: used for routing.</dd></div>
+        <div><dt>Alertmanager</dt><dd>Groups, sends (email, Slack), manages silences.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the Alerts page in Prometheus: green inactive, yellow pending, red firing. Explain for: an isolated error must not wake anyone up. We do not deploy Alertmanager today for lack of time, but the rule is identical; Grafana can also notify directly.
+  </aside>
+</section>
+
+<!-- ============================ PART 2: GRAFANA ============================ -->
+<section class="dark part" data-photo="server-room.jpg">
+  <div class="num">Part 2 / 4</div>
+  <h2>Grafana</h2>
+  <p>Turning series into dashboards the whole team understands, and versioning them like code.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Grafana</span>
+  <h2>One dashboard per <em>question</em></h2>
+  <div class="cols">
+    <div>
+      <dl class="kv">
+        <div><dt>Data source</dt><dd>Where the data comes from: Prometheus, Loki, PostgreSQL, and dozens of others.</dd></div>
+        <div><dt>Dashboard</dt><dd>A page of panels that answers one question: "Is Formini Tasks healthy?"</dd></div>
+        <div><dt>Panel</dt><dd>A graph, a gauge, a stat. One PromQL query behind each.</dd></div>
+        <div><dt>Variable</dt><dd>A drop-down (<code>$endpoint</code>, <code>$instance</code>) that parameterises every query.</dd></div>
+      </dl>
+    </div>
+    <div>
+      <h3>A good dashboard</h3>
+      <ul>
+        <li>At the top: the golden signals, big, readable from afar.</li>
+        <li>Below: the detail needed to diagnose.</li>
+        <li>Units everywhere (req/s, ms, %), colour-coded thresholds.</li>
+        <li>No more than 10 to 12 panels: beyond that, nobody looks.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    Open Grafana (port 3001, admin / formini) and show the provided dashboard. Explain the hierarchy: the top row must be readable from the other end of the room. Open a panel's editor so participants see there is nothing but PromQL behind it.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Dashboards as code</span>
+  <h2>Provision rather than click</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="grafana/provisioning/datasources/prometheus.yml"><code class="language-yaml">apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true</code></pre>
+      <pre data-label="grafana/provisioning/dashboards/dashboards.yml"><code class="language-yaml">apiVersion: 1
+providers:
+  - name: formini
+    folder: Formini
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards</code></pre>
+    </div>
+    <div>
+      <p>At start-up, Grafana reads these files and creates the data source and the dashboards. The dashboard JSON lives in <strong>Git</strong>, reviewed in a PR, deployed by the pipeline.</p>
+      <ul class="tight">
+        <li>Reproducible in every environment.</li>
+        <li>History of changes.</li>
+        <li>Export from the UI: <em>Share → Export → JSON</em>.</li>
+      </ul>
+      <div class="callout teal"><p>Same logic as Terraform or Kubernetes: the desired state lives in a file.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Draw the parallel with yesterday's infrastructure as code. The classic trap: a beautiful dashboard built with the mouse, lost when the container is recreated without a volume. Show the monitoring/grafana folder in the solution.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Setup</span>
+  <h2>The monitoring stack in one command</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="monitoring/compose.yaml" class="sm"><code class="language-yaml">services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prom-data:/prometheus
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: formini
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports: ["3001:3000"]
+  node-exporter: { image: prom/node-exporter:v1.8.2, ... }
+  cadvisor:      { image: gcr.io/cadvisor/cadvisor:v0.49.1, ... }</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>:9090</dt><dd>Prometheus</dd></div>
+        <div><dt>:3001</dt><dd>Grafana (3000 is taken by Gitea)</dd></div>
+        <div><dt>:9100</dt><dd>node_exporter</dd></div>
+        <div><dt>:8081</dt><dd>cAdvisor</dd></div>
+      </dl>
+      <p class="small">Everything is in <code>ateliers/jour5-supervision-projet/solution/monitoring/</code>. The stack joins the application's Compose network so it can reach <code>web:5000</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Do not read the YAML line by line: point out the volumes (config and provisioning mounted from Git) and the network shared with the day 2 application. host.docker.internal also makes it possible to scrape the kind cluster's NodePort from the Prometheus container.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Guided lab · 10:45 – 12:00</span>
+  <h2>Monitoring Formini Tasks</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Start the</strong> <code>monitoring/</code> <strong>stack</strong> next to the day 2 Compose application, check the targets in Prometheus.</li>
+        <li><strong>Generate traffic</strong> with <code>load.sh</code>, then run the five PromQL queries.</li>
+        <li><strong>Open Grafana</strong>: the provisioned dashboard shows the golden signals.</li>
+        <li><strong>Add a panel</strong>: open tasks, then export the JSON into Git.</li>
+        <li><strong>Trigger an alert</strong>: stop <code>web</code>, watch <code>AppDown</code> switch to <em>firing</em>.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Worksheet:</strong> <code>ateliers/jour5-supervision-projet/README.md</code>, part 1</p></div>
+      <h3>Success criteria</h3>
+      <ul class="tight">
+        <li>Four targets <em>UP</em> in Prometheus.</li>
+        <li>A p95 and an error rate visible in Grafana.</li>
+        <li>An alert that fires, then resolves.</li>
+      </ul>
+      <p class="small mt">Bonus: scrape the application deployed on kind (NodePort 8080) and compare the two.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Frequent failures: Compose network not found (start the day 2 application first), port 3000 already taken by Gitea (hence 3001), cAdvisor refusing to start without the read-only volumes. Check that every team sees a non-zero error rate: load.sh deliberately calls IDs that do not exist.
+  </aside>
+</section>
+
+<!-- ============================ PART 3: FINAL PROJECT ============================ -->
+<section class="dark part" data-photo="cover-team.jpg">
+  <div class="num">Part 3 / 4</div>
+  <h2>Final project</h2>
+  <p>The whole chain, as a team, in two hours. Then ten minutes to show it.</p>
+</section>
+
+<section>
+  <span class="eyebrow">The brief</span>
+  <h2>From commit to dashboard, <em>with no manual step</em></h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 230" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="a5p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7A8399"/></marker></defs>
+      <g font-size="19" fill="#14213D">
+        <rect x="10" y="40" width="190" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="105" y="85" text-anchor="middle" font-weight="600">Code</text>
+        <text x="105" y="113" text-anchor="middle" font-size="15" fill="#7A8399">PR, review, protected main</text>
+
+        <rect x="240" y="40" width="190" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="335" y="85" text-anchor="middle" font-weight="600">Test</text>
+        <text x="335" y="113" text-anchor="middle" font-size="15" fill="#7A8399">pytest, lint</text>
+
+        <rect x="470" y="40" width="190" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="565" y="85" text-anchor="middle" font-weight="600">Build</text>
+        <text x="565" y="113" text-anchor="middle" font-size="15" fill="#7A8399">image, scan, registry</text>
+
+        <rect x="700" y="40" width="190" height="110" rx="14" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="795" y="85" text-anchor="middle" font-weight="600">Deploy</text>
+        <text x="795" y="113" text-anchor="middle" font-size="15" fill="#7A8399">kind, rolling update</text>
+
+        <rect x="930" y="40" width="180" height="110" rx="14" fill="#14213D"/>
+        <text x="1020" y="85" text-anchor="middle" font-weight="600" fill="#F7F4EE">Monitor</text>
+        <text x="1020" y="113" text-anchor="middle" font-size="15" fill="#C9CFDD">dashboard, alert</text>
+
+        <line x1="202" y1="95" x2="236" y2="95" stroke="#7A8399" stroke-width="2" marker-end="url(#a5p)"/>
+        <line x1="432" y1="95" x2="466" y2="95" stroke="#7A8399" stroke-width="2" marker-end="url(#a5p)"/>
+        <line x1="662" y1="95" x2="696" y2="95" stroke="#7A8399" stroke-width="2" marker-end="url(#a5p)"/>
+        <line x1="892" y1="95" x2="926" y2="95" stroke="#7A8399" stroke-width="2" marker-end="url(#a5p)"/>
+        <text x="560" y="200" text-anchor="middle" font-size="15" fill="#E8611A" font-family="JetBrains Mono, monospace">ONE FEATURE TRAVELS THE WHOLE CHAIN: THE "PRIORITY" FIELD ON TASKS</text>
+      </g>
+    </svg>
+  </div>
+  <p>Per team, on <strong>Formini Tasks</strong>: assemble the pieces built this week into a chain that works end to end, and prove it with a real commit.</p>
+  <aside class="notes">
+    The brief fits in one sentence: a commit on main must end up, without a single click, in monitored production. Everything has already been done separately; the exercise is about assembly and reliability. The small feature acts as a tracer: it must show up in the deployed API and in the metrics.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Final project · 13:15 – 15:00 · per team</span>
+  <h2>Expected deliverables</h2>
+  <div class="cols wide-left">
+    <div>
+      <ol class="steps">
+        <li><strong>Gitea repository</strong> <code>formini-tasks</code> with a protected <code>main</code> and at least one PR reviewed and merged today.</li>
+        <li><strong>Green pipeline</strong>: test, build, scan, image tagged with the SHA pushed to the Gitea registry.</li>
+        <li><strong>Deployment on kind</strong> with two replicas, rolling update triggered by the pipeline or by a documented command.</li>
+        <li><strong>Monitoring</strong>: Prometheus scrapes the deployed application, a versioned Grafana dashboard, a tested alert.</li>
+        <li><strong>The</strong> <code>priority</code> <strong>feature</strong> visible in the production API and in the tests.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout teal"><p><strong>Specification:</strong> <code>ateliers/jour5-supervision-projet/projet-final/</code></p></div>
+      <h3>Tips</h3>
+      <ul class="tight">
+        <li>Split the steps between you, then integrate early.</li>
+        <li>A <code>README.md</code> that explains how to run everything.</li>
+        <li>Rehearse your demo <strong>before</strong> 15:00.</li>
+      </ul>
+      <p class="small mt">At 14:00 and 14:30, a 3-minute check-in per team with the trainer.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Hand out the printed specification or point to the file. Invite each team to name a "demo lead" responsible for the presentation. Walk around the teams from 13:20 to check that a work-split plan exists. The 14:00 and 14:30 check-ins are there to unblock, not to grade.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Grading</span>
+  <h2>The grid, out of 100 points</h2>
+  <table>
+    <tr><th>Criterion</th><th>What we look at</th><th>Points</th></tr>
+    <tr><td>Git and review</td><td>Protected branch, PR with comments, conventional commit messages</td><td>15</td></tr>
+    <tr><td>Containerisation</td><td>Clean Dockerfile (cache, non-root, healthcheck), working Compose</td><td>15</td></tr>
+    <tr><td>CI/CD pipeline</td><td>Tests, build, scan, published image, secrets out of the code</td><td>20</td></tr>
+    <tr><td>Kubernetes deployment</td><td>Versioned manifests, probes, rolling update demonstrated</td><td>20</td></tr>
+    <tr><td>Monitoring</td><td>Targets UP, provisioned dashboard, alert triggered</td><td>15</td></tr>
+    <tr><td>Presentation</td><td>Clear live demo, roles, answers to questions, timing respected</td><td>15</td></tr>
+  </table>
+  <p class="small">Bonus (up to +10): the <code>priority</code> feature travels the whole chain, deployment triggered automatically by the pipeline, Alertmanager with notification.</p>
+  <aside class="notes">
+    Announce the grid before the work, not after: teams know where to invest their time. Make it clear that we grade the chain, not the Python code. A team that has not finished but shows an honest chain up to the build will get points; a demo that "was working a moment ago" will not.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Presentations · 15:00 – 15:45</span>
+  <h2>Ten to fifteen minutes to <em>prove it</em></h2>
+  <div class="cols">
+    <div>
+      <ol class="steps">
+        <li><b>1 min</b> — the team, who did what.</li>
+        <li><b>2 min</b> — the architecture, on the whiteboard or a diagram.</li>
+        <li><b>6 min</b> — live demo: a commit, the pipeline, the deployment, the dashboard moving.</li>
+        <li><b>2 min</b> — what held up, what you would do differently.</li>
+        <li><b>3 min</b> — questions.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout warn">
+        <p>Prepare the commit <strong>in advance</strong> (a one-line change is enough). While the pipeline runs, explain what it does. If something breaks live, diagnose out loud: that is exactly what we are assessing.</p>
+      </div>
+      <p class="small">Running order drawn at random at 15:00. Visible timer. Outline template: <code>projet-final/MODELE-PRESENTATION.md</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Keep time strictly: with four teams, 45 minutes means 11 minutes each. Plan a timer visible on the projector. Encourage the other teams to ask questions: award a bonus point for the best question if the room needs energising.
+  </aside>
+</section>
+
+<!-- ============================ PART 4: WRAP-UP ============================ -->
+<section class="dark part" data-photo="summit.jpg">
+  <div class="num">Part 4 / 4</div>
+  <h2>Wrap-up</h2>
+  <p>What you take away, and what remains to explore.</p>
+</section>
+
+<section data-side-photo="handshake.jpg">
+  <span class="eyebrow">Summary of the week</span>
+  <h2>Five days, one complete chain</h2>
+  <dl class="kv">
+    <div><dt>Day 1</dt><dd><strong>DevOps culture, Linux, Git.</strong> One branch per task, one PR, one review. SSH with keys.</dd></div>
+    <div><dt>Day 2</dt><dd><strong>Docker.</strong> A reproducible image, Compose for the application and its database, Gitea registry.</dd></div>
+    <div><dt>Day 3</dt><dd><strong>CI/CD.</strong> Gitea Actions: every commit is tested, built, scanned, published. Secrets out of the code.</dd></div>
+    <div><dt>Day 4</dt><dd><strong>Infrastructure as code, Kubernetes.</strong> Terraform, Ansible, Deployments, Services, rolling update, rollback.</dd></div>
+    <div><dt>Day 5</dt><dd><strong>Monitoring.</strong> Prometheus, PromQL, Grafana, alerts. The loop is closed.</dd></div>
+  </dl>
+  <aside class="notes">
+    Go back to the infinite loop from day 1 and tick off each step. Point out that no tool was learned for its own sake: each one serves a practice, and each practice serves the culture. Repeat Monday's quote: DevOps is neither a tool nor a job title.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">What next</span>
+  <h2>Where to go from here</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <h3>In your team</h3>
+      <p>Pick <strong>one</strong> practice to put in place next month: the mandatory PR, or the test pipeline. Small batches, as always.</p>
+    </div>
+    <div class="card teal">
+      <h3>To go further</h3>
+      <p>GitOps (Argo CD, Flux), Helm, centralised logs (Loki), traces (OpenTelemetry), supply-chain security (SBOM, signatures).</p>
+    </div>
+    <div class="card">
+      <h3>To get certified</h3>
+      <p>CKA / CKAD (Kubernetes), HashiCorp Terraform Associate, AWS Solutions Architect.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p>All the week's material stays on Gitea: slides, lab worksheets, solutions, scripts. Clone it before you leave.</p>
+  </div>
+  <aside class="notes">
+    Ask everyone to say out loud the practice they will introduce in their team. A verbal commitment in front of the group raises the odds of follow-through. Remind them that the training repository stays accessible and that the solutions are in it.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Your feedback</span>
+  <h2>Five minutes to <em>help us</em></h2>
+  <div class="cols">
+    <div>
+      <ol class="steps">
+        <li><strong>The pace:</strong> too fast, too slow, just right?</li>
+        <li><strong>The most useful day,</strong> and why.</li>
+        <li><strong>What is missing:</strong> a topic, a tool, more hands-on time?</li>
+        <li><strong>One piece of advice</strong> for the next session.</li>
+      </ol>
+    </div>
+    <div>
+      <p>Questionnaire handed out by the trainer, anonymous, to return before leaving.</p>
+      <div class="callout teal"><p>Then a round-table: <strong>one thing</strong> you will do differently next Monday.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Hand out the questionnaire (text in the trainer's guide). Allow five minutes of silence to fill it in, then the round-table. End on a concrete note: everyone leaves with one specific action.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Thank you</div>
+  <h2>All the best.</h2>
+  <p>Slides, worksheets, solutions and scripts: the <code>formation-devops</code> repository on Gitea.<br>Do not forget: <code>terraform destroy</code> before you leave.</p>
+  <p class="credits">Photos — Wikimedia Commons · control-room : Siarhei Besarab (CC BY-SA 4.0) · library : Michael D Beckwith (CC BY 3.0) · monitors : NASA/JPL-Caltech (Public domain) · harbor-night : chazzie (CC BY 3.0) · server-room : Hugovanmeijeren (CC BY-SA 3.0) · cover-team : DERDAKI ILIAS (CC BY-SA 4.0) · summit : LassenNPS (Public domain) · handshake : rawpixel.com (CC0)</p>
+</section>
+
+</div>
+</div>
+<script src="../../assets/vendor/reveal/reveal.js"></script>
+<script src="../../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../../assets/deck.js"></script>
+</body>
+</html>

@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jour 2 — Conteneurisation avec Docker · Formini</title>
+  <link rel="icon" href="../assets/formini-logo.svg">
+  <link rel="stylesheet" href="../assets/vendor/reveal/reset.css">
+  <link rel="stylesheet" href="../assets/vendor/reveal/reveal.css">
+  <link rel="stylesheet" href="../assets/theme.css">
+</head>
+<body data-deck="Formation DevOps · Jour 2 · Docker">
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================ COUVERTURE ============================ -->
+<section class="dark cover" data-photo="container-ship.jpg">
+  <img class="logo plain" src="../assets/formini-logo-light.svg" alt="Formini">
+  <div class="day">02<small>Jour 2 / 5</small></div>
+  <h1>Conteneurisation <em>avec</em> Docker</h1>
+  <p class="meta"><span>Lundi 09 novembre 2026</span><span>09:00 – 16:00</span><span>Formation DevOps · 5 jours</span></p>
+  <aside class="notes">
+    Accueil, retour sur les points flous notés hier soir (5 minutes maximum). Vérifier que toutes les VM sont allumées et que Gitea répond. Annoncer l'objectif de la journée : ce soir, l'image de Formini Tasks sera publiée dans le registre Gitea de chaque équipe, prête pour le pipeline de demain.
+  </aside>
+</section>
+
+<!-- ============================ SEMAINE ============================ -->
+<section>
+  <span class="eyebrow">La semaine en un coup d'œil</span>
+  <h2>Jour 2 : empaqueter l'application</h2>
+  <div class="flow">
+    <div><b>Jour 1</b>DevOps, Linux, Git &amp; Gitea</div>
+    <div class="on"><b>Jour 2</b>Docker &amp; Compose</div>
+    <div><b>Jour 3</b>CI/CD avec Gitea Actions</div>
+    <div><b>Jour 4</b>Terraform, Ansible, Kubernetes</div>
+    <div><b>Jour 5</b>Prometheus, Grafana, projet final</div>
+  </div>
+  <div class="cols mt">
+    <div>
+      <h3>Hier</h3>
+      <p>Le code de <strong>Formini Tasks</strong> est dans Gitea, sur <code>main</code>, protégé, avec un historique propre.</p>
+    </div>
+    <div>
+      <h3>Ce soir</h3>
+      <p>La même application tourne dans un conteneur, avec sa base PostgreSQL, et son image est publiée dans le <strong>registre Gitea</strong>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Relier au fil rouge : hier le code, aujourd'hui l'artefact. Demain, le pipeline produira cet artefact automatiquement ; donc tout ce que l'on fait à la main aujourd'hui doit être reproductible par un script.
+  </aside>
+</section>
+
+<!-- ============================ AGENDA ============================ -->
+<section data-side-photo="lecture-hall.jpg">
+  <span class="eyebrow">Programme du jour</span>
+  <h2>Des applications portables et reproductibles</h2>
+  <ul class="agenda">
+    <li><span class="t">09:00 – 10:30</span><span><strong>Conteneurs et VM</strong> · images, conteneurs, registres · cycle de vie</span></li>
+    <li><span class="t">10:30 – 10:45</span><span class="pause">Pause-café</span></li>
+    <li><span class="t">10:45 – 12:00</span><span><strong>Atelier guidé</strong> : premier conteneur, puis le Dockerfile de Formini Tasks</span></li>
+    <li><span class="t">12:00 – 13:00</span><span class="pause">Pause déjeuner</span></li>
+    <li><span class="t">13:00 – 14:00</span><span><strong>Dockerfiles efficaces</strong> · <strong>Docker Compose</strong> · registre Gitea</span></li>
+    <li><span class="t">14:00 – 15:30</span><span><strong>Défi en équipe</strong> : application + base en Compose, image publiée dans Gitea</span></li>
+    <li><span class="t">15:30 – 16:00</span><span>Bilan de la journée et questions-réponses</span></li>
+  </ul>
+  <aside class="notes">
+    Insister sur la structure : le matin on apprend à faire tourner et à construire ; l'après-midi on apprend à bien faire, puis à partager. Les deux ateliers s'enchaînent sur le même dépôt.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 1 ============================ -->
+<section class="dark part" data-photo="harbor-night.jpg">
+  <div class="num">Partie 1 / 4</div>
+  <h2>Conteneurs et machines virtuelles</h2>
+  <p>Ce qu'un conteneur isole, ce qu'il partage, et pourquoi il démarre en une seconde.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Le problème</span>
+  <h2>« Ça marche sur ma machine »</h2>
+  <div class="cols">
+    <div>
+      <p>Une application dépend de bien plus que son code :</p>
+      <ul>
+        <li>Une version précise de Python, de bibliothèques, de pilotes.</li>
+        <li>Des fichiers de configuration, des variables, des chemins.</li>
+        <li>Un système d'exploitation avec ses paquets.</li>
+      </ul>
+      <p>Chaque environnement, poste, test, production, dérive un peu. Les écarts se découvrent le jour du déploiement.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <p><strong>L'idée du conteneur :</strong> livrer l'application <em>avec</em> son environnement, dans un paquet unique, immuable, qui s'exécute à l'identique partout.</p>
+      </div>
+      <p class="small">Analogie : le conteneur maritime. Le contenu n'intéresse pas le port ; seule la forme standard compte, et la même grue charge tout.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Demander qui a déjà passé une journée à faire tourner un projet récupéré d'un collègue. Le conteneur ne supprime pas la complexité, il la fige dans une image que tout le monde partage. Lancer la métaphore du conteneur maritime, on y reviendra pour le registre.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Comparaison</span>
+  <h2>Machine virtuelle ou conteneur</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1120 330" xmlns="http://www.w3.org/2000/svg">
+      <g font-size="18" fill="#14213D">
+        <!-- VM stack -->
+        <text x="250" y="24" text-anchor="middle" font-weight="600" font-size="20">Machines virtuelles</text>
+        <rect x="40" y="250" width="420" height="44" rx="8" fill="#14213D"/>
+        <text x="250" y="279" text-anchor="middle" fill="#F7F4EE">Matériel</text>
+        <rect x="40" y="200" width="420" height="44" rx="8" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="250" y="229" text-anchor="middle">Hyperviseur</text>
+        <g>
+          <rect x="40" y="46" width="130" height="148" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <rect x="185" y="46" width="130" height="148" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <rect x="330" y="46" width="130" height="148" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <text x="105" y="76" text-anchor="middle" font-size="16" font-weight="600">App A</text>
+          <text x="250" y="76" text-anchor="middle" font-size="16" font-weight="600">App B</text>
+          <text x="395" y="76" text-anchor="middle" font-size="16" font-weight="600">App C</text>
+          <text x="105" y="104" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+          <text x="250" y="104" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+          <text x="395" y="104" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+          <rect x="52" y="128" width="106" height="52" rx="6" fill="#B8322A" opacity="0.85"/>
+          <rect x="197" y="128" width="106" height="52" rx="6" fill="#B8322A" opacity="0.85"/>
+          <rect x="342" y="128" width="106" height="52" rx="6" fill="#B8322A" opacity="0.85"/>
+          <text x="105" y="160" text-anchor="middle" font-size="15" fill="#F7F4EE">OS invité</text>
+          <text x="250" y="160" text-anchor="middle" font-size="15" fill="#F7F4EE">OS invité</text>
+          <text x="395" y="160" text-anchor="middle" font-size="15" fill="#F7F4EE">OS invité</text>
+        </g>
+        <!-- Container stack -->
+        <text x="870" y="24" text-anchor="middle" font-weight="600" font-size="20">Conteneurs</text>
+        <rect x="660" y="250" width="420" height="44" rx="8" fill="#14213D"/>
+        <text x="870" y="279" text-anchor="middle" fill="#F7F4EE">Matériel</text>
+        <rect x="660" y="200" width="420" height="44" rx="8" fill="none" stroke="#14213D" stroke-width="2"/>
+        <text x="870" y="229" text-anchor="middle">Noyau Linux de l'hôte</text>
+        <rect x="660" y="150" width="420" height="44" rx="8" fill="none" stroke="#E8611A" stroke-width="2"/>
+        <text x="870" y="179" text-anchor="middle" fill="#E8611A">Moteur Docker (containerd, runc)</text>
+        <g>
+          <rect x="660" y="46" width="130" height="98" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <rect x="805" y="46" width="130" height="98" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <rect x="950" y="46" width="130" height="98" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <text x="725" y="80" text-anchor="middle" font-size="16" font-weight="600">App A</text>
+          <text x="870" y="80" text-anchor="middle" font-size="16" font-weight="600">App B</text>
+          <text x="1015" y="80" text-anchor="middle" font-size="16" font-weight="600">App C</text>
+          <text x="725" y="112" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+          <text x="870" y="112" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+          <text x="1015" y="112" text-anchor="middle" font-size="15" fill="#3D4A63">Bibliothèques</text>
+        </g>
+        <text x="250" y="322" text-anchor="middle" font-size="15" fill="#7A8399">Un noyau par VM · minutes · Go</text>
+        <text x="870" y="322" text-anchor="middle" font-size="15" fill="#7A8399">Un noyau partagé · secondes · Mo</text>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">
+    Point clé : un conteneur n'a pas de noyau. C'est un processus Linux ordinaire, isolé. D'où le démarrage instantané et la taille réduite. Contrepartie : l'isolation est moins forte qu'une VM, et un conteneur Linux a besoin d'un noyau Linux (sur Windows et macOS, Docker Desktop lance une petite VM).
+  </aside>
+</section>
+
+<section data-side-photo="keyboard.jpg">
+  <span class="eyebrow">Sous le capot</span>
+  <h2>Un processus isolé, rien de plus</h2>
+  <dl class="kv">
+    <div><dt>namespaces</dt><dd><strong>Ce que le processus voit.</strong> Son propre arbre de processus (PID 1), ses interfaces réseau, ses points de montage, son nom d'hôte, ses utilisateurs.</dd></div>
+    <div><dt>cgroups</dt><dd><strong>Ce que le processus peut consommer.</strong> Limites de CPU, de mémoire, d'entrées-sorties. <code>docker run --memory 256m</code>.</dd></div>
+    <div><dt>overlayfs</dt><dd><strong>Ce qu'il lit et écrit.</strong> Les couches de l'image en lecture seule, plus une fine couche d'écriture jetée à la suppression.</dd></div>
+    <div><dt>capabilities</dt><dd><strong>Ce qu'il a le droit de faire.</strong> Un sous-ensemble des privilèges root, réduit par défaut.</dd></div>
+  </dl>
+  <pre data-label="terminal"><code class="language-bash">docker run -d --name demo nginx:1.27-alpine
+ps -ef | grep nginx          # visible depuis l'hôte comme un processus normal
+docker exec demo ps -ef      # dans le conteneur : nginx est PID 1</code></pre>
+  <aside class="notes">
+    Démo en direct : lancer nginx, montrer ps depuis l'hôte, puis depuis le conteneur. Le même processus, deux points de vue. Cela explique pourquoi les journaux, la mémoire et les ports se gèrent avec les outils Linux d'hier.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 2 ============================ -->
+<section class="dark part" data-photo="conveyor.jpg">
+  <div class="num">Partie 2 / 4</div>
+  <h2>Images, conteneurs et registres</h2>
+  <p>Le vocabulaire, le cycle de vie, et les commandes que l'on tape dix fois par jour.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Vocabulaire</span>
+  <h2>Trois objets, un flux</h2>
+  <div class="flow">
+    <div><b>Dockerfile</b>La recette : texte, versionné dans Git</div>
+    <div><b>Image</b>Le paquet : couches immuables, taguées</div>
+    <div class="on"><b>Conteneur</b>L'instance : un processus vivant</div>
+    <div><b>Registre</b>La bibliothèque : partage des images</div>
+  </div>
+  <div class="cols mt">
+    <dl class="kv">
+      <div><dt>build</dt><dd>Dockerfile → image</dd></div>
+      <div><dt>run</dt><dd>image → conteneur</dd></div>
+      <div><dt>push / pull</dt><dd>image ↔ registre</dd></div>
+    </dl>
+    <div>
+      <p>Une <strong>image</strong> est à un <strong>conteneur</strong> ce qu'une classe est à un objet, ou un fichier ISO à une machine qui tourne : on peut lancer cent conteneurs depuis la même image.</p>
+      <p class="small">Un registre public : Docker Hub. Un registre privé : celui de Gitea, aujourd'hui.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Faire répéter le vocabulaire : on construit une image, on lance un conteneur, on pousse dans un registre. L'erreur courante est de confondre image et conteneur ; la commande docker ps -a contre docker images aide à fixer la distinction.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Cycle de vie</span>
+  <h2>Lancer, observer, entrer, arrêter</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash">docker run -d --name web -p 8080:80 nginx:1.27-alpine
+docker ps                      # conteneurs en marche
+docker ps -a                   # y compris arrêtés
+docker logs -f web             # journaux (Ctrl-C pour sortir)
+docker exec -it web sh         # un shell à l'intérieur
+docker stop web                # SIGTERM, puis SIGKILL après 10 s
+docker start web
+docker rm -f web               # supprimer (force l'arrêt)</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>-d</dt><dd>Détaché : rend la main, le conteneur continue.</dd></div>
+        <div><dt>-p 8080:80</dt><dd>Port hôte 8080 → port conteneur 80.</dd></div>
+        <div><dt>--name</dt><dd>Un nom lisible plutôt qu'un identifiant.</dd></div>
+        <div><dt>-it</dt><dd>Terminal interactif, pour <code>exec</code> ou <code>run</code>.</dd></div>
+        <div><dt>--rm</dt><dd>Supprime le conteneur à l'arrêt. Pour les essais.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <aside class="notes">
+    Dérouler la séquence en direct, ouvrir http://localhost:8080 dans le navigateur de la VM. Montrer docker exec pour lire un fichier de config dans le conteneur. Insister : un conteneur arrêté existe encore, docker ps -a le montre, docker rm le supprime.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Persistance</span>
+  <h2>Jetable, mais pas ses <em>données</em></h2>
+  <div class="cols">
+    <div>
+      <p>La couche d'écriture disparaît avec le conteneur. Tout ce qui doit survivre vit <strong>à l'extérieur</strong> :</p>
+      <dl class="kv">
+        <div><dt>volume</dt><dd>Géré par Docker, nommé, portable. <strong>Le choix par défaut</strong> pour les bases.</dd></div>
+        <div><dt>bind mount</dt><dd>Un dossier de l'hôte monté dans le conteneur. Code en développement, configuration.</dd></div>
+        <div><dt>tmpfs</dt><dd>En mémoire, jamais sur disque. Secrets, caches.</dd></div>
+      </dl>
+    </div>
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># volume nommé
+docker volume create pgdata
+docker run -d --name db \
+  -e POSTGRES_PASSWORD=formini \
+  -v pgdata:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# bind mount (dossier courant → /app)
+docker run --rm -v "$PWD":/app -w /app python:3.12-slim \
+  python -c "print('bonjour')"
+
+docker volume ls
+docker volume inspect pgdata</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Démo qui marque : lancer postgres sans volume, créer une table, docker rm, relancer, la table a disparu. Puis la même chose avec le volume. Le défi de l'après-midi repose sur ce volume nommé.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Réseau</span>
+  <h2>Les conteneurs se parlent <em>par leur nom</em></h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="terminal"><code class="language-bash">docker network create formini
+docker run -d --name db --network formini \
+  -e POSTGRES_PASSWORD=formini postgres:16-alpine
+docker run --rm -it --network formini postgres:16-alpine \
+  psql -h db -U postgres        # « db » est résolu par le DNS Docker
+
+docker network ls
+docker network inspect formini
+docker port web                 # publications de ports</code></pre>
+    </div>
+    <div>
+      <ul>
+        <li>Sur un même réseau défini par l'utilisateur, chaque conteneur est joignable par son <strong>nom</strong>.</li>
+        <li>Le réseau <code>bridge</code> par défaut ne fournit pas ce DNS : toujours créer le sien.</li>
+        <li>Seuls les ports <strong>publiés</strong> (<code>-p</code>) sont visibles depuis l'hôte.</li>
+      </ul>
+      <p class="small">Compose crée ce réseau pour vous ; c'est pour cela que <code>db</code> fonctionne comme nom d'hôte dans <code>DATABASE_URL</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Anticiper Compose : expliquer maintenant pourquoi la chaîne de connexion de l'après-midi contiendra « db » et non « localhost ». Erreur numéro un du défi : mettre localhost dans DATABASE_URL, qui désigne le conteneur web lui-même.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Dockerfile</span>
+  <h2>La recette d'une image</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="Dockerfile (première version)"><code class="language-dockerfile">FROM python:3.12-slim
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+EXPOSE 5000
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:create_app()"]</code></pre>
+      <pre data-label="terminal"><code class="language-bash">docker build -t formini-tasks:0.1 .
+docker run -d -p 5000:5000 formini-tasks:0.1
+curl localhost:5000/health</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>FROM</dt><dd>L'image de départ. Toujours une version précise.</dd></div>
+        <div><dt>WORKDIR</dt><dd>Le dossier courant pour les instructions suivantes.</dd></div>
+        <div><dt>COPY</dt><dd>Fichiers du contexte de build → image.</dd></div>
+        <div><dt>RUN</dt><dd>Une commande exécutée <em>au build</em>, crée une couche.</dd></div>
+        <div><dt>CMD</dt><dd>La commande lancée <em>au run</em>. Une seule.</dd></div>
+      </dl>
+      <p class="small">Cette version fonctionne. L'après-midi, on verra pourquoi elle est lente à reconstruire, lourde, et lancée en root.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    C'est le Dockerfile que les participants écrivent dans l'atelier guidé. Volontairement naïf : l'après-midi on l'améliore ligne par ligne. Bien distinguer RUN (au build) et CMD (au run), confusion très fréquente.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Atelier guidé · 10:45 – 12:00</span>
+  <h2>Premier conteneur, premier Dockerfile</h2>
+  <div class="cols wide-left">
+    <ol class="steps">
+      <li><strong>Premiers pas :</strong> lancer nginx, publier un port, lire les journaux, entrer dans le conteneur, le supprimer.</li>
+      <li><strong>Écrire le Dockerfile</strong> de Formini Tasks dans votre clone du dépôt, sur une branche <code>feature/docker</code>.</li>
+      <li><strong>Construire</strong> l'image <code>formini-tasks:0.1</code>, lancer le conteneur, vérifier <code>/health</code> et l'interface web.</li>
+      <li><strong>Inspecter :</strong> taille de l'image, couches (<code>docker history</code>), utilisateur courant, fichiers copiés par erreur.</li>
+      <li><strong>Pousser</strong> la branche et ouvrir une pull request (fusion après l'amélioration de l'après-midi).</li>
+    </ol>
+    <div>
+      <div class="callout teal">
+        <p><strong>Fiche atelier :</strong> <code>ateliers/jour2-docker/README.md</code>, partie 1</p>
+      </div>
+      <div class="callout warn">
+        <p>Si <code>docker</code> répond « permission denied » : votre utilisateur n'est pas dans le groupe <code>docker</code>. <code>sudo usermod -aG docker $USER</code>, puis ouvrez une nouvelle session.</p>
+      </div>
+      <p class="small">Bonus : lancer deux conteneurs de l'image sur deux ports différents ; limiter la mémoire à 128 Mo et observer.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Circuler. Pannes fréquentes : contexte de build lancé depuis le mauvais dossier (le point final de docker build), port déjà utilisé, .venv copié dans l'image (on le verra avec docker history, cela amène naturellement le .dockerignore de l'après-midi). Les plus rapides font le bonus mémoire.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 3 ============================ -->
+<section class="dark part" data-photo="blueprint.jpg">
+  <div class="num">Partie 3 / 4</div>
+  <h2>Écrire des Dockerfiles efficaces</h2>
+  <p>Rapides à reconstruire, petits, sûrs, et prêts pour un pipeline.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Couches et cache</span>
+  <h2>L'ordre des instructions change tout</h2>
+  <div class="cols">
+    <div class="diagram">
+      <svg viewBox="0 0 520 300" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="15" font-family="JetBrains Mono, monospace">
+          <text x="110" y="22" text-anchor="middle" fill="#B8322A" font-family="IBM Plex Sans, sans-serif" font-weight="600">Naïf</text>
+          <rect x="20" y="36" width="180" height="40" rx="6" fill="#14213D"/><text x="110" y="61" text-anchor="middle" fill="#F7F4EE">FROM python</text>
+          <rect x="20" y="82" width="180" height="40" rx="6" fill="#B8322A"/><text x="110" y="107" text-anchor="middle" fill="#F7F4EE">COPY . .</text>
+          <rect x="20" y="128" width="180" height="40" rx="6" fill="#B8322A" opacity="0.75"/><text x="110" y="153" text-anchor="middle" fill="#F7F4EE">RUN pip install</text>
+          <rect x="20" y="174" width="180" height="40" rx="6" fill="#B8322A" opacity="0.6"/><text x="110" y="199" text-anchor="middle" fill="#F7F4EE">CMD</text>
+          <text x="110" y="250" text-anchor="middle" fill="#7A8399" font-family="IBM Plex Sans, sans-serif" font-size="14">un caractère changé dans app.py</text>
+          <text x="110" y="270" text-anchor="middle" fill="#7A8399" font-family="IBM Plex Sans, sans-serif" font-size="14">→ pip réinstallé à chaque build</text>
+
+          <text x="400" y="22" text-anchor="middle" fill="#3A7D44" font-family="IBM Plex Sans, sans-serif" font-weight="600">Ordonné</text>
+          <rect x="310" y="36" width="180" height="40" rx="6" fill="#14213D"/><text x="400" y="61" text-anchor="middle" fill="#F7F4EE">FROM python</text>
+          <rect x="310" y="82" width="180" height="40" rx="6" fill="#3A7D44"/><text x="400" y="107" text-anchor="middle" fill="#F7F4EE">COPY requirements</text>
+          <rect x="310" y="128" width="180" height="40" rx="6" fill="#3A7D44"/><text x="400" y="153" text-anchor="middle" fill="#F7F4EE">RUN pip install</text>
+          <rect x="310" y="174" width="180" height="40" rx="6" fill="#E8611A"/><text x="400" y="199" text-anchor="middle" fill="#F7F4EE">COPY . .</text>
+          <text x="400" y="250" text-anchor="middle" fill="#7A8399" font-family="IBM Plex Sans, sans-serif" font-size="14">couches vertes : servies par le cache</text>
+          <text x="400" y="270" text-anchor="middle" fill="#7A8399" font-family="IBM Plex Sans, sans-serif" font-size="14">seule la copie du code est refaite</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <p>Chaque instruction produit une <strong>couche</strong>. Docker réutilise une couche tant que l'instruction <em>et</em> les fichiers qu'elle touche n'ont pas changé. Dès qu'une couche est invalidée, toutes les suivantes le sont.</p>
+      <div class="callout">
+        <p><strong>Règle :</strong> du plus stable au plus volatil. Système, puis dépendances, puis code.</p>
+      </div>
+      <pre data-label="Dockerfile"><code class="language-dockerfile">COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Démo chronométrée : modifier app.py, rebuild avec le Dockerfile naïf (pip tourne), puis avec la version ordonnée (deux secondes). C'est la différence entre un pipeline de 5 minutes et de 30 secondes demain.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Contexte de build</span>
+  <h2>Ne copiez pas ce qui n'a rien à faire là</h2>
+  <div class="cols">
+    <div>
+      <pre data-label=".dockerignore"><code class="language-text">.git
+.venv
+__pycache__
+*.pyc
+*.db
+.env
+tests/
+.pytest_cache
+ateliers/
+*.md</code></pre>
+    </div>
+    <div>
+      <ul>
+        <li><code>docker build .</code> envoie <strong>tout le dossier</strong> au moteur avant la première instruction.</li>
+        <li>Un <code>.venv</code> ou un <code>.git</code> copié : image énorme, cache cassé à chaque commit.</li>
+        <li>Un <code>.env</code> copié : <strong>un secret dans l'image</strong>, lisible par quiconque la télécharge.</li>
+      </ul>
+      <div class="callout warn">
+        <p>Vérifiez ce qui est dans l'image : <code>docker run --rm image ls -la /app</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Montrer la ligne « transferring context » au début d'un build avec et sans .dockerignore. Le point sécurité sur .env prépare le jour 3 : les secrets ne vont ni dans Git ni dans l'image, ils arrivent à l'exécution.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Taille et surface d'attaque</span>
+  <h2>Plus petite, plus vite, plus sûre</h2>
+  <div class="cols">
+    <div>
+      <table>
+        <tr><th>Image de base</th><th>Taille</th><th>Usage</th></tr>
+        <tr><td>python:3.12</td><td>≈ 1 Go</td><td>Compilation, debug</td></tr>
+        <tr><td>python:3.12-slim</td><td>≈ 150 Mo</td><td><strong>Notre choix</strong></td></tr>
+        <tr><td>python:3.12-alpine</td><td>≈ 50 Mo</td><td>Attention aux roues binaires</td></tr>
+        <tr><td>distroless</td><td>≈ 50 Mo</td><td>Sans shell, production</td></tr>
+      </table>
+      <p class="small">Moins de paquets : moins de failles à corriger, moins d'octets à transférer, démarrage plus rapide sur Kubernetes.</p>
+    </div>
+    <div>
+      <pre data-label="Dockerfile multi-stage"><code class="language-dockerfile"># étape 1 : construire les dépendances
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install \
+    -r requirements.txt
+
+# étape 2 : image finale, sans pip ni outils de build
+FROM python:3.12-slim
+COPY --from=build /install /usr/local
+WORKDIR /app
+COPY app.py .
+COPY static/ static/</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Le multi-stage sert surtout aux langages compilés (Go, Java) où l'image finale ne contient que le binaire. Pour Python, le gain est modeste ; c'est le bonus du défi, on compare les tailles avec docker images.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Sécurité et exploitation</span>
+  <h2>Le Dockerfile que l'on garde</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="Dockerfile" class="sm"><code class="language-dockerfile">FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+COPY static/ static/
+
+RUN useradd --create-home --uid 1000 app \
+ &amp;&amp; chown -R app:app /app
+USER app
+
+EXPOSE 5000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:5000/health')"
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "--workers", "2", "app:create_app()"]</code></pre>
+    </div>
+    <div>
+      <ul class="compact">
+        <li><strong>USER</strong> : jamais root en production. Une faille de l'app ne donne pas root sur l'hôte.</li>
+        <li><strong>HEALTHCHECK</strong> : Docker et Compose savent si l'app est <em>vraiment</em> prête.</li>
+        <li><strong>ENV</strong> : journaux non tamponnés, visibles aussitôt dans <code>docker logs</code>.</li>
+        <li><strong>CMD exec</strong> : gunicorn est PID 1 et reçoit SIGTERM proprement.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    C'est la solution de référence (ateliers/jour2-docker/solution/Dockerfile). Expliquer chaque ligne ajoutée par rapport au matin. La forme exec de CMD évite un shell intermédiaire qui avalerait SIGTERM : sinon docker stop attend 10 secondes puis tue.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Tags</span>
+  <h2>Un tag dit <em>quoi</em>, jamais <em>latest</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash">docker build \
+  -t formini-tasks:1.2.0 \
+  -t formini-tasks:$(git rev-parse --short HEAD) \
+  .
+docker images formini-tasks
+docker history formini-tasks:1.2.0
+docker inspect formini-tasks:1.2.0 | grep -i user</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>1.2.0</dt><dd>Version sémantique : lisible, pour les humains et les changelogs.</dd></div>
+        <div><dt>a1b2c3d</dt><dd>SHA du commit : <strong>immuable</strong>, trace exacte du code. Le pipeline de demain l'utilisera.</dd></div>
+        <div><dt>latest</dt><dd>Un alias mouvant. Interdit en production : on ne sait jamais ce qui tourne.</dd></div>
+      </dl>
+      <div class="callout">
+        <p>Un tag est une étiquette sur une image ; plusieurs tags peuvent pointer la même image, sans la dupliquer.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Anecdote : deux serveurs avec « latest » qui tournent deux versions différentes parce que tirées à des jours différents. Le SHA de commit comme tag relie l'image au code : indispensable pour le retour arrière de Kubernetes au jour 4.
+  </aside>
+</section>
+
+<!-- ============================ PARTIE 4 ============================ -->
+<section class="dark part" data-photo="construction.jpg">
+  <div class="num">Partie 4 / 4</div>
+  <h2>Docker Compose et le registre</h2>
+  <p>Décrire plusieurs conteneurs dans un fichier, puis partager l'image avec l'équipe et le pipeline.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Compose</span>
+  <h2>Plusieurs conteneurs, un seul fichier</h2>
+  <div class="cols wide-right">
+    <div>
+      <p>Une application réelle, c'est l'app <strong>et</strong> sa base, son cache, son proxy. Les lancer à la main avec dix options chacun n'est pas reproductible.</p>
+      <p><strong>Compose</strong> décrit l'ensemble dans <code>compose.yaml</code>, versionné avec le code, et le pilote en une commande.</p>
+      <pre data-label="terminal"><code class="language-bash">docker compose up -d --build
+docker compose ps
+docker compose logs -f web
+docker compose exec db psql -U formini tasks
+docker compose down          # garde les volumes
+docker compose down -v       # supprime aussi les données</code></pre>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 560 330" xmlns="http://www.w3.org/2000/svg">
+        <g font-size="17" fill="#14213D">
+          <rect x="20" y="40" width="520" height="250" rx="16" fill="none" stroke="#D9D3C7" stroke-width="2" stroke-dasharray="8 6"/>
+          <text x="40" y="70" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">réseau formini-tasks_default</text>
+          <rect x="60" y="110" width="180" height="110" rx="12" fill="#14213D"/>
+          <text x="150" y="152" text-anchor="middle" fill="#F7F4EE" font-weight="600">web</text>
+          <text x="150" y="180" text-anchor="middle" fill="#C9CFDD" font-size="14">build: . · :5000</text>
+          <rect x="320" y="110" width="180" height="110" rx="12" fill="none" stroke="#14213D" stroke-width="2"/>
+          <text x="410" y="152" text-anchor="middle" font-weight="600">db</text>
+          <text x="410" y="180" text-anchor="middle" fill="#7A8399" font-size="14">postgres:16-alpine</text>
+          <line x1="242" y1="165" x2="316" y2="165" stroke="#E8611A" stroke-width="2.5"/>
+          <text x="279" y="153" text-anchor="middle" font-size="13" fill="#E8611A" font-family="JetBrains Mono, monospace">db:5432</text>
+          <rect x="340" y="245" width="140" height="34" rx="8" fill="#EFEAE0" stroke="#D9D3C7"/>
+          <text x="410" y="268" text-anchor="middle" font-size="14" font-family="JetBrains Mono, monospace">volume pgdata</text>
+          <line x1="410" y1="222" x2="410" y2="243" stroke="#7A8399" stroke-width="2"/>
+          <rect x="60" y="300" width="180" height="26" rx="6" fill="none"/>
+          <text x="150" y="316" text-anchor="middle" font-size="14" fill="#7A8399" font-family="JetBrains Mono, monospace">hôte :8000 → web:5000</text>
+          <line x1="150" y1="222" x2="150" y2="298" stroke="#7A8399" stroke-width="2" stroke-dasharray="4 4"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+  <aside class="notes">
+    Topologie du défi : deux services sur un réseau privé, un seul port publié, un volume pour la base. Montrer que compose down conserve pgdata et que down -v l'efface : c'est le piège classique quand on veut « repartir de zéro » sans perdre ses données.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">compose.yaml · 1/2</span>
+  <h2>Le service <em>web</em></h2>
+  <div class="cols">
+    <div>
+      <pre data-label="compose.yaml" class="sm"><code class="language-yaml">services:
+  web:
+    build: .
+    image: formini-tasks:dev
+    ports: ["8000:5000"]
+    environment:
+      DATABASE_URL: postgresql://formini:${POSTGRES_PASSWORD}@db:5432/tasks
+      APP_VERSION: ${APP_VERSION:-dev}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>depends_on</dt><dd>Avec <code>service_healthy</code> : web attend que Postgres <strong>réponde</strong>.</dd></div>
+        <div><dt>${VAR}</dt><dd>Lue dans <code>.env</code>, ignoré par Git. On versionne <code>.env.example</code>.</dd></div>
+        <div><dt>restart</dt><dd>Relance après un crash ou un redémarrage de la VM.</dd></div>
+      </dl>
+      <p class="small">Le nom d'hôte <code>db</code> dans l'URL est le nom du service : Compose le résout sur le réseau interne.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Sans la condition service_healthy, web démarre avant Postgres et plante avec « connection refused » : laisser les participants le constater avant de donner la solution. Montrer docker compose config, qui affiche la configuration résolue, mots de passe compris, donc à ne jamais coller dans un ticket.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">compose.yaml · 2/2</span>
+  <h2>Le service <em>db</em> et son volume</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="compose.yaml (suite)"><code class="language-yaml">  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: formini
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: tasks
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formini -d tasks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>image</dt><dd>Pas de build : une image officielle, version épinglée.</dd></div>
+        <div><dt>healthcheck</dt><dd>La commande qui dit « prêt ». C'est elle que <code>depends_on</code> attend.</dd></div>
+        <div><dt>volumes</dt><dd>Le volume nommé <code>pgdata</code>, déclaré en bas, survit à <code>compose down</code>.</dd></div>
+      </dl>
+      <div class="callout warn"><p>Aucun port publié pour <code>db</code> : seule <code>web</code> y accède, par le réseau interne.</p></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Faire remarquer l'absence de ports sur db : c'est une bonne pratique de sécurité, la base n'est pas exposée sur la VM. Pour y accéder on passe par docker compose exec db psql. Le healthcheck pg_isready est fourni par l'image postgres elle-même.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Registre</span>
+  <h2>Publier l'image dans Gitea</h2>
+  <div class="cols">
+    <div>
+      <pre data-label="terminal"><code class="language-bash"># 1. s'authentifier (jeton d'accès Gitea, portée package)
+docker login gitea.formini.local:3000 -u amina
+
+# 2. nommer l'image avec l'adresse du registre
+docker tag formini-tasks:dev \
+  gitea.formini.local:3000/equipe-a/formini-tasks:0.2.0
+
+# 3. pousser
+docker push gitea.formini.local:3000/equipe-a/formini-tasks:0.2.0
+
+# 4. depuis une autre VM : récupérer et lancer
+docker pull gitea.formini.local:3000/equipe-a/formini-tasks:0.2.0</code></pre>
+    </div>
+    <div>
+      <p>Le nom complet d'une image dit où elle habite :</p>
+      <pre data-label="anatomie d'un nom"><code class="language-text">gitea.formini.local:3000 / equipe-a / formini-tasks : 0.2.0
+└── registre ─────────┘   └ org ─┘   └── dépôt ──┘  └ tag</code></pre>
+      <ul class="tight">
+        <li>Sans registre dans le nom : Docker Hub par défaut.</li>
+        <li>Le registre Gitea est en HTTP : il est déclaré dans <code>insecure-registries</code> du démon (fait par le script d'installation).</li>
+        <li>Les images apparaissent dans Gitea → organisation → <strong>Packages</strong>.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    Montrer la création du jeton dans Gitea : Settings → Applications → Generate token, portée package read/write. Le mot de passe du compte fonctionne aussi mais on prend l'habitude du jeton, celui du pipeline demain en sera un. Pousser en direct et ouvrir l'onglet Packages au projecteur.
+  </aside>
+</section>
+
+<section class="atelier">
+  <span class="eyebrow">Défi en autonomie · 14:00 – 15:30 · par équipe</span>
+  <h2>L'application et sa base, publiées</h2>
+  <div class="cols wide-left">
+    <ol class="steps">
+      <li><strong>Améliorer le Dockerfile</strong> du matin : cache, <code>.dockerignore</code>, utilisateur non-root, <code>HEALTHCHECK</code>.</li>
+      <li><strong>Écrire <code>compose.yaml</code> :</strong> web + PostgreSQL 16, healthcheck, volume nommé, mot de passe dans <code>.env</code>.</li>
+      <li><strong>Prouver la persistance :</strong> créer des tâches, <code>compose down</code>, <code>compose up</code>, elles sont toujours là.</li>
+      <li><strong>Publier</strong> l'image taguée <code>0.2.0</code> et avec le SHA du commit dans le registre de <code>equipe-a</code>.</li>
+      <li><strong>Fusionner</strong> la PR <code>feature/docker</code> après revue ; un coéquipier lance l'image depuis le registre sur sa VM.</li>
+    </ol>
+    <div>
+      <div class="callout teal"><p><strong>Fiche :</strong> <code>ateliers/jour2-docker/README.md</code>, partie 2</p></div>
+      <h3>Critères de réussite</h3>
+      <ul class="tight">
+        <li><code>docker compose ps</code> : deux services <em>healthy</em>.</li>
+        <li>Image &lt; 200 Mo, <code>whoami</code> ≠ root dedans.</li>
+        <li>Image visible dans Gitea → Packages, avec deux tags.</li>
+      </ul>
+      <p class="small mt">Bonus : version multi-stage et comparaison des tailles ; analyse avec <code>trivy image</code>.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Laisser les équipes se répartir : une personne sur le Dockerfile, une sur Compose, une sur le registre et la PR. Passer vers 14:30 vérifier DATABASE_URL (le piège localhost) et vers 15:00 vérifier les tags. À 15:15, une équipe montre son onglet Packages au projecteur.
+  </aside>
+</section>
+
+<section>
+  <span class="eyebrow">Dépannage</span>
+  <h2>Quand ça ne démarre pas</h2>
+  <table>
+    <tr><th>Symptôme</th><th>Cause probable</th><th>Réflexe</th></tr>
+    <tr><td>connection refused vers db</td><td>web démarré avant Postgres, ou <code>localhost</code> dans l'URL</td><td><code>depends_on: condition</code>, nom d'hôte <code>db</code></td></tr>
+    <tr><td>port is already allocated</td><td>Un autre conteneur publie le même port</td><td><code>docker ps</code>, changer le port hôte</td></tr>
+    <tr><td>http: server gave HTTP response</td><td>Registre HTTP non déclaré insecure</td><td><code>/etc/docker/daemon.json</code>, redémarrer Docker</td></tr>
+    <tr><td>unauthorized: authentication required</td><td>Pas de <code>docker login</code>, ou jeton sans portée package</td><td>Regénérer le jeton, se reconnecter</td></tr>
+    <tr><td>Conteneur « unhealthy »</td><td>Le healthcheck échoue : app pas prête ou mauvais port</td><td><code>docker inspect --format '{{json .State.Health}}'</code></td></tr>
+    <tr><td>Image de 900 Mo</td><td><code>.venv</code> ou <code>.git</code> copiés</td><td><code>.dockerignore</code>, <code>docker history</code></td></tr>
+  </table>
+  <aside class="notes">
+    Garder cette diapositive affichée pendant le défi si le projecteur est libre. Chaque ligne correspond à une panne vue dans de vraies sessions. docker inspect sur l'état de santé donne la sortie exacte de la commande de healthcheck, très utile.
+  </aside>
+</section>
+
+<!-- ============================ BILAN ============================ -->
+<section>
+  <span class="eyebrow">Bilan · 15:30 – 16:00</span>
+  <h2>Ce que l'on retient du jour 2</h2>
+  <div class="cols-3">
+    <div class="card accent">
+      <span class="num">1</span>
+      <h3>Un conteneur est un processus</h3>
+      <p>Isolé par le noyau, sans OS propre, jetable. Les données vivent dans des volumes, les conteneurs se parlent par leur nom.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">2</span>
+      <h3>Une image se construit avec soin</h3>
+      <p>Du stable au volatil pour le cache, <code>.dockerignore</code>, image slim, utilisateur non-root, healthcheck, tags immuables.</p>
+    </div>
+    <div class="card accent">
+      <span class="num">3</span>
+      <h3>Compose décrit, le registre partage</h3>
+      <p>Un fichier versionné pour toute la pile, une image publiée dans Gitea que n'importe qui peut lancer.</p>
+    </div>
+  </div>
+  <div class="callout mt">
+    <p><strong>Demain :</strong> tout ce que vous avez tapé aujourd'hui, un pipeline Gitea Actions le fera à chaque commit : tests, build, analyse de sécurité, publication. Laissez vos VM allumées.</p>
+  </div>
+  <aside class="notes">
+    Tour de table : une chose apprise, une chose floue. Vérifier que chaque équipe a bien une image dans son registre, le pipeline de demain en dépend. Rappeler de ne pas éteindre les VM.
+  </aside>
+</section>
+
+<section class="dark part">
+  <div class="num">Questions &amp; réponses</div>
+  <h2>Merci.</h2>
+  <p>Fiches d'atelier, Dockerfile et compose de référence : dépôt <code>formation-devops</code> sur Gitea.<br>À demain, 09:00, pour les pipelines CI/CD.</p>
+  <p class="credits">Photos — Wikimedia Commons · container-ship : Downtowngal (CC BY-SA 4.0) · lecture-hall : Stephany5757 (CC BY-SA 4.0) · harbor-night : chazzie (CC BY 3.0) · keyboard : Colin (CC BY-SA 4.0) · conveyor : RICHI Manufacture (CC BY 4.0) · blueprint : Lyme Art Association (Public domain) · construction : SSJF01 (CC0)</p>
+</section>
+
+</div>
+</div>
+<script src="../assets/vendor/reveal/reveal.js"></script>
+<script src="../assets/vendor/reveal/plugin/highlight/highlight.js"></script>
+<script src="../assets/vendor/reveal/plugin/notes/notes.js"></script>
+<script src="../assets/deck.js"></script>
+</body>
+</html>

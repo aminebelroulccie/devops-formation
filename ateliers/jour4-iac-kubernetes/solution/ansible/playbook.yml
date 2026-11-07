@@ -1,0 +1,158 @@
+---
+# Formation DevOps Formini — Jour 4
+# Installe Docker sur le serveur créé par Terraform et lance Formini Tasks.
+#
+# Le registre Gitea de la salle n'est pas joignable depuis AWS : on copie le
+# code de l'application (avec son Dockerfile et son compose.yaml du jour 2)
+# sur le serveur et on construit l'image sur place.
+#
+#   ansible-playbook playbook.yml                 # tout
+#   ansible-playbook playbook.yml -t docker       # Docker seulement
+#   ansible-playbook playbook.yml -t app          # application seulement
+#   ansible-playbook playbook.yml --check --diff  # simulation
+
+- name: Préparer le serveur Formini Tasks
+  hosts: web
+  become: true
+
+  vars:
+    app_src: "{{ playbook_dir }}/../../../../app/formini-tasks" # clone local du dépôt
+    app_dest: /opt/formini-tasks
+    app_user: ubuntu
+    app_version: "{{ lookup('pipe', 'git -C ' ~ app_src ~ ' rev-parse --short HEAD 2>/dev/null || echo aws') }}"
+
+  tasks:
+    # ------------------------------------------------------------ Docker
+    - name: Attendre que SSH réponde (instance fraîchement créée)
+      ansible.builtin.wait_for_connection:
+        timeout: 180
+      tags: [docker, app]
+
+    - name: Installer les dépendances
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, gnupg, git]
+        state: present
+        update_cache: true
+      tags: docker
+
+    - name: Déposer la clé GPG du dépôt Docker
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+      tags: docker
+
+    - name: Déclarer le dépôt Docker
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        filename: docker
+        state: present
+      tags: docker
+
+    - name: Installer Docker Engine et le plugin Compose
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      notify: Redémarrer Docker
+      tags: docker
+
+    - name: Démarrer Docker au boot
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      tags: docker
+
+    - name: Ajouter {{ app_user }} au groupe docker
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        groups: docker
+        append: true
+      tags: docker
+
+    # ------------------------------------------------------------ Application
+    - name: Créer le dossier de l'application
+      ansible.builtin.file:
+        path: "{{ app_dest }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: "0755"
+      tags: app
+
+    - name: Copier le code de l'application
+      ansible.builtin.copy:
+        src: "{{ app_src }}/"
+        dest: "{{ app_dest }}/"
+        owner: "{{ app_user }}"
+        mode: preserve
+      register: app_copy
+      tags: app
+
+    - name: Vérifier la présence du compose.yaml (jour 2)
+      ansible.builtin.stat:
+        path: "{{ app_dest }}/compose.yaml"
+      register: compose_file
+      tags: app
+
+    - name: Fichier .env de l'application
+      ansible.builtin.copy:
+        dest: "{{ app_dest }}/.env"
+        content: |
+          APP_VERSION={{ app_version }}
+          POSTGRES_PASSWORD={{ lookup('password', '/dev/null length=20 chars=ascii_letters,digits') }}
+        owner: "{{ app_user }}"
+        mode: "0600"
+        force: false   # ne pas régénérer le mot de passe à chaque exécution
+      tags: app
+
+    - name: Lancer avec Docker Compose (application + PostgreSQL)
+      ansible.builtin.command:
+        cmd: docker compose up -d --build
+        chdir: "{{ app_dest }}"
+      when: compose_file.stat.exists
+      changed_when: app_copy.changed
+      tags: app
+
+    - name: Sans compose.yaml - construire l'image
+      ansible.builtin.command:
+        cmd: docker build -t formini-tasks:{{ app_version }} .
+        chdir: "{{ app_dest }}"
+      when: not compose_file.stat.exists
+      changed_when: app_copy.changed
+      tags: app
+
+    - name: Sans compose.yaml - lancer le conteneur (SQLite)
+      ansible.builtin.shell: |
+        docker rm -f formini-tasks 2>/dev/null || true
+        docker run -d --name formini-tasks --restart unless-stopped \
+          -p 5000:5000 -e APP_VERSION={{ app_version }} formini-tasks:{{ app_version }}
+      when: not compose_file.stat.exists and app_copy.changed
+      tags: app
+
+    - name: Attendre que l'application réponde
+      ansible.builtin.uri:
+        url: http://localhost:5000/health
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 20
+      delay: 3
+      tags: app
+
+    - name: Afficher l'URL
+      ansible.builtin.debug:
+        msg: "Formini Tasks répond : http://{{ inventory_hostname }}:5000 (version {{ app_version }})"
+      tags: app
+
+  handlers:
+    - name: Redémarrer Docker
+      ansible.builtin.service:
+        name: docker
+        state: restarted
