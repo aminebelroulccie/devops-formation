@@ -240,7 +240,7 @@ variable "public_key_path" {
 output "ssh" {
   value = "ssh ubuntu@${aws_instance.web.public_ip}"
 }</code></pre>
-      <pre data-label="terminal" class="sm"><code class="language-bash">terraform apply -var="owner=amina"
+      <pre data-label="terminal" class="sm"><code class="language-bash">terraform apply -var="owner=formini-a1"
 # ou : fichier terraform.tfvars
 terraform output public_ip</code></pre>
     </div>
@@ -268,7 +268,7 @@ terraform output public_ip</code></pre>
       <pre data-label="backend.tf" class="sm"><code class="language-hcl">terraform {
   backend "s3" {
     bucket       = "formini-tfstate"
-    key          = "formation/amina.tfstate"
+    key          = "formation/formini-a1.tfstate"
     region       = "eu-west-3"
     use_lockfile = true   # verrou natif S3
   }

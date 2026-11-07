@@ -93,7 +93,7 @@
     <p>The longer you wait to integrate, the more it hurts. The only remedy: integrate <strong>all the time</strong>, and let a machine check every single time.</p>
   </div>
   <aside class="notes">
-    Tell the story of release Friday: the six-week branch, the 40 conflicts, the build that only passes on Karim's workstation. Ask who has known a build that only one person knew how to run. Transition: CI is about making that ritual boring, repeatable and instant.
+    Tell the story of release Friday: the six-week branch, the 40 conflicts, the build that only passes on one colleague's workstation. Ask who has known a build that only one person knew how to run. Transition: CI is about making that ritual boring, repeatable and instant.
   </aside>
 </section>
 
@@ -377,7 +377,7 @@ jobs:
 act_runner register --no-interactive \
   --instance http://gitea.formini.local:3000 \
   --token &lt;TOKEN&gt; \
-  --name vm-amina \
+  --name vm-formini-a1 \
   --labels ubuntu-latest:host
 
 # 3. run it as a service
@@ -580,7 +580,7 @@ trivy image \
           <line x1="30" y1="56" x2="290" y2="56" stroke="#D9D3C7"/>
           <circle cx="42" cy="86" r="9" fill="#3A7D44"/><text x="62" y="92">test · passed</text>
           <circle cx="42" cy="122" r="9" fill="#3A7D44"/><text x="62" y="128">build · passed</text>
-          <circle cx="42" cy="158" r="9" fill="#3A7D44"/><text x="62" y="164">1 approval · Karim</text>
+          <circle cx="42" cy="158" r="9" fill="#3A7D44"/><text x="62" y="164">1 approval · reviewer</text>
           <rect x="30" y="200" width="260" height="46" rx="10" fill="#14213D"/>
           <text x="160" y="229" text-anchor="middle" fill="#F7F4EE" font-weight="600">Merge</text>
           <text x="160" y="276" text-anchor="middle" font-size="13" fill="#7A8399" font-family="JetBrains Mono, monospace">ALL GREEN</text>

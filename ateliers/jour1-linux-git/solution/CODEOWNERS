@@ -1,6 +1,6 @@
 # Relecteurs demandés automatiquement selon les fichiers modifiés.
 # Syntaxe : <motif>  <@utilisateur ou @org/equipe>
 *            @equipe-a/owners
-app.py       @personne-a
-tests/       @personne-b
-README.md    @personne-c
+app.py       @formini-a1
+tests/       @formini-a2
+README.md    @formini-a3

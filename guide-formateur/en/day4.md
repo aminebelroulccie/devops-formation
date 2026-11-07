@@ -80,7 +80,7 @@ back.
 ```bash
 cd ~/formation-devops/ateliers/jour4-iac-kubernetes/solution/terraform
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=eu-west-3
-cp terraform.tfvars.example terraform.tfvars && sed -i 's/amina/formateur/' terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars && sed -i 's/formini-a1/formateur/' terraform.tfvars
 terraform init
 terraform plan
 ```
