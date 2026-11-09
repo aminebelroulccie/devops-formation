@@ -1,0 +1,12 @@
+[package]
+name = "formini-hello-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tiny_http = "0.12"
+
+[profile.release]
+strip = true        # retire les symboles : binaire plus petit
+lto = true          # optimisation à l'édition de liens
+codegen-units = 1

@@ -164,6 +164,12 @@ Points de passage :
 Si une équipe termine tôt : bonus trivy (nombre de CVE critiques `slim` contre image
 complète), puis multi-stage et comparaison des tailles.
 
+**Démo optionnelle (10 min, si avance) :** `bash ateliers/jour2-docker/exemples/build-all.sh`,
+lancé pendant la pause (Rust compile 2 à 5 min la première fois). Commenter le tableau des
+tailles : Go distroless ≈ 8 Mo, Rust ≈ 25 Mo, React/nginx ≈ 50 Mo, Python ≈ 150 Mo. Message :
+la taille dépend de ce qu'on met dans l'image finale, pas du langage. Renvoyer les participants
+vers `exemples/README.md` pour le bonus « autres langages ».
+
 ## 15:30 – 16:00 — Bilan (slides 28 et 29)
 
 Les trois points de la slide 28. Tour de table : une chose apprise, une chose encore

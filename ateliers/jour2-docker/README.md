@@ -254,6 +254,9 @@ curl -s localhost:9000/health
 
 - **Multi-stage** : écrivez une variante `Dockerfile.multistage` (voir diapositive) et
   comparez `docker images`.
+- **Autres langages** : quatre Dockerfiles commentés (Go, Python/FastAPI, React, Rust) dans
+  [`exemples/`](exemples/README.md). Choisissez celui de votre contexte, construisez-le et faites
+  son exercice.
 - **Analyse de vulnérabilités** : `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.0 image formini-tasks:0.2.0`
   (ou `docker scout quickview formini-tasks:0.2.0` si disponible). Combien de CVE
   critiques ? Combien avec `python:3.12` au lieu de `-slim` ?
