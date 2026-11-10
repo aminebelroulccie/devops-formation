@@ -170,6 +170,13 @@ table: Go distroless ≈ 8 MB, Rust ≈ 25 MB, React/nginx ≈ 50 MB, Python ≈
 depends on what goes into the final image, not on the language. Point participants to
 `exemples/README.en.md` for the "other languages" bonus.
 
+**Second optional demo (after part 2.2, if ahead):** one of the `exemples/stack-*/` stacks (Go
+builds fastest; Rust takes 5 to 10 min, prepare it before the session). `docker compose up -d --build`,
+open http://localhost:8080, create a task, increment the counter. Show `depends_on … service_healthy`,
+the `api` name in `frontend/nginx.conf`, then `docker compose stop cache` → `/api/info` reports a
+Redis error while tasks still work. The four stacks are identical except for the `api/` folder:
+participants pick the one for their language.
+
 ## 15:30 – 16:00 — Wrap-up (slides 28 and 29)
 
 The three points on slide 28. Go around the table: one thing learned, one thing still

@@ -170,6 +170,14 @@ tailles : Go distroless ≈ 8 Mo, Rust ≈ 25 Mo, React/nginx ≈ 50 Mo, Python 
 la taille dépend de ce qu'on met dans l'image finale, pas du langage. Renvoyer les participants
 vers `exemples/README.md` pour le bonus « autres langages ».
 
+**Démo optionnelle bis (après la partie 2.2, si avance) :** une des piles `exemples/stack-*/`
+(Go est la plus rapide à construire ; Rust prend 5 à 10 min, à préparer avant la session).
+`docker compose up -d --build`, ouvrir http://localhost:8080, créer une tâche, incrémenter le
+compteur. Montrer `depends_on … service_healthy`, le nom `api` dans `frontend/nginx.conf`, puis
+`docker compose stop cache` → `/api/info` signale Redis en erreur, les tâches fonctionnent encore.
+Les quatre piles sont identiques à l'exception du dossier `api/` : les participants prennent celle
+de leur langage.
+
 ## 15:30 – 16:00 — Bilan (slides 28 et 29)
 
 Les trois points de la slide 28. Tour de table : une chose apprise, une chose encore

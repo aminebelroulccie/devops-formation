@@ -17,6 +17,20 @@ commented `Dockerfile`, a `.dockerignore` and a README with an exercise.
 Every application exposes `GET /` (JSON or a page) and `GET /health`, on port 8080
 (8000 for Python).
 
+**The Compose stacks:** each language also has its own complete, self-contained `compose.yaml`, with a
+React front end served by nginx, the API in that language, PostgreSQL (initialised by `db/init.sql`)
+and Redis. Same structure, same API contract, only the `api/` folder differs.
+
+| Stack | API | Folder |
+|-------|-----|--------|
+| Go | Go 1.23, pgx, go-redis | [`stack-go/`](stack-go/README.en.md) |
+| Python | FastAPI, psycopg 3, redis-py | [`stack-python/`](stack-python/README.en.md) |
+| React + Node | Express, pg, ioredis | [`stack-react-node/`](stack-react-node/README.en.md) |
+| Rust | tiny_http, postgres, redis | [`stack-rust/`](stack-rust/README.en.md) |
+
+Show it after the running example's `compose.yaml`: `cp .env.example .env && docker compose up -d --build`,
+then <http://localhost:8080>.
+
 ## How to use them in the course
 
 - **Trainer demo (≈ 10 min)**: run `bash build-all.sh` on the VM during the break (Rust is slow

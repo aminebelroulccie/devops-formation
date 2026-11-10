@@ -1,0 +1,62 @@
+# Pile Formini (Node) — front React, API Node, PostgreSQL et Redis.
+# Lancer :  cp .env.example .env && docker compose up -d --build
+# Ouvrir :  http://localhost:8080   (API exposée aussi sur 8081 pour curl)
+services:
+
+  frontend:
+    build: ./frontend
+    image: formini-node-frontend:dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    image: formini-node-api:dev
+    environment:
+      DATABASE_URL: postgresql://formini:${POSTGRES_PASSWORD}@db:5432/formini
+      REDIS_URL: redis://cache:6379/0
+      PORT: "8080"
+    ports:
+      - "8081:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: formini
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: formini
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # exécuté une seule fois, à la création du volume : schéma + données de démonstration
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formini -d formini"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

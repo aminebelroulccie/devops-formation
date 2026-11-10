@@ -257,6 +257,10 @@ curl -s localhost:9000/health
 - **Autres langages** : quatre Dockerfiles commentés (Go, Python/FastAPI, React, Rust) dans
   [`exemples/`](exemples/README.md). Choisissez celui de votre contexte, construisez-le et faites
   son exercice.
+- **Piles complètes** : un `compose.yaml` par langage dans `exemples/stack-*/` (front React,
+  API Go, Python, Node ou Rust, PostgreSQL, Redis), par exemple
+  [`exemples/stack-go/`](exemples/stack-go/README.md). Exercices : réplication de l'API, panne
+  du cache, publication des images.
 - **Analyse de vulnérabilités** : `docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.0 image formini-tasks:0.2.0`
   (ou `docker scout quickview formini-tasks:0.2.0` si disponible). Combien de CVE
   critiques ? Combien avec `python:3.12` au lieu de `-slim` ?

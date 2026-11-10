@@ -17,6 +17,20 @@ Hello » complète, son `Dockerfile` commenté, un `.dockerignore` et un README 
 Toutes les applications exposent `GET /` (JSON ou page) et `GET /health`, sur le port 8080
 (8000 pour Python).
 
+**Les piles Compose :** chaque langage a aussi son `compose.yaml` complet et autonome, avec un front
+React servi par nginx, l'API dans ce langage, PostgreSQL (initialisé par `db/init.sql`) et Redis.
+Même structure, même contrat d'API, seul le dossier `api/` change.
+
+| Pile | API | Dossier |
+|------|-----|---------|
+| Go | Go 1.23, pgx, go-redis | [`stack-go/`](stack-go/README.md) |
+| Python | FastAPI, psycopg 3, redis-py | [`stack-python/`](stack-python/README.md) |
+| React + Node | Express, pg, ioredis | [`stack-react-node/`](stack-react-node/README.md) |
+| Rust | tiny_http, postgres, redis | [`stack-rust/`](stack-rust/README.md) |
+
+À montrer après le `compose.yaml` du fil rouge : `cp .env.example .env && docker compose up -d --build`,
+puis <http://localhost:8080>.
+
 ## Utilisation en formation
 
 - **Démonstration formateur (≈ 10 min)** : `bash build-all.sh` sur la VM pendant la pause
