@@ -318,6 +318,9 @@ docker pull gitea.formini.local:3000/equipe-a/formini-tasks:v1.0.0
    pour que chaque PR rappelle la liste de vérification.
 5. **Notification** : un dernier step qui appelle un webhook (Mattermost, Slack,
    Discord…) avec `curl` quand `build` échoue (`if: failure()`).
+6. **Autres langages** : les mêmes pipelines (lint, tests, test d'intégration de la pile
+   complète avec `docker compose`, scan, publication, release) pour les piles Go, Python, Node et
+   Rust du jour 2 sont dans [`exemples/`](exemples/README.md). Prenez celui de votre langage.
 
 ---
 

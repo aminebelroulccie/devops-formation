@@ -29,7 +29,8 @@ Même structure, même contrat d'API, seul le dossier `api/` change.
 | Rust | tiny_http, postgres, redis | [`stack-rust/`](stack-rust/README.md) |
 
 À montrer après le `compose.yaml` du fil rouge : `cp .env.example .env && docker compose up -d --build`,
-puis <http://localhost:8080>.
+puis <http://localhost:8080>. Les pipelines Gitea Actions de ces quatre piles sont au jour 3 :
+[`ateliers/jour3-cicd/exemples/`](../../jour3-cicd/exemples/README.md).
 
 ## Utilisation en formation
 

@@ -220,6 +220,11 @@ steps of the same job rather than separate jobs?" The answer (runners
 on different VMs, different Docker daemons) is in the sheet; check
 that they have understood it, then send them off to the cache or pip-audit bonus.
 
+**Teams that finished Day 2 with a `stack-*` stack**: the matching workflows are in
+`ateliers/jour3-cicd/exemples/<language>/.gitea/`. Watch out: the `integration` job starts the
+full stack on the runner (`compose up --build --wait`); for Rust, run the first pipeline before
+the session (10 to 15 min), later runs take 2 min thanks to the cache volumes.
+
 **Buffer**: if the teams are running late at 15:00, drop 2.4 (the tag) and
 do it as a demo at the wrap-up. Branch protection matters more than the tag.
 

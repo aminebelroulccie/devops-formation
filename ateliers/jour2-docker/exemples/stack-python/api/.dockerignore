@@ -5,3 +5,7 @@ __pycache__
 *.md
 Dockerfile*
 .dockerignore
+tests/
+conftest.py
+.flake8
+requirements-dev.txt

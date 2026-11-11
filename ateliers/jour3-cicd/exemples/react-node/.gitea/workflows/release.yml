@@ -1,0 +1,68 @@
+# Livraison d'une version — pile Formini Node
+#
+# Déclenché par un tag Git qui commence par "v" (v1.0.0, v1.2.3…).
+# Les deux images (API et front) sont étiquetées avec le nom du tag.
+#
+#   git tag -a v1.0.0 -m "Première version livrée"
+#   git push origin v1.0.0
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  REGISTRY: gitea.formini.local:3000
+  IMAGE_API: gitea.formini.local:3000/equipe-a/formini-node-api
+  IMAGE_FRONT: gitea.formini.local:3000/equipe-a/formini-node-frontend
+  VERSION: ${{ gitea.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # On ne livre jamais sans tests : mêmes étapes que le job api de ci.yml.
+
+      # Node est installé sur la VM (il fait tourner act_runner) : npm directement.
+      - name: Dépendances
+        working-directory: api
+        run: npm ci --no-audit --no-fund
+
+      - name: Vérification syntaxique
+        working-directory: api
+        run: node --check server.js
+
+      - name: Tests (node:test)
+        working-directory: api
+        run: npm test
+
+      - name: Audit des dépendances (informatif)
+        working-directory: api
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      - name: Construction des images
+        run: |
+          docker build --pull -t "$IMAGE_API:$VERSION" api
+          docker build --pull -t "$IMAGE_FRONT:$VERSION" frontend
+
+      - name: Analyse de sécurité
+        run: |
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_API:$VERSION"
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_FRONT:$VERSION"
+
+      - name: Connexion au registre
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Publication
+        run: |
+          docker push "$IMAGE_API:$VERSION"
+          docker push "$IMAGE_FRONT:$VERSION"
+          echo "Version $VERSION publiée : $IMAGE_API:$VERSION et $IMAGE_FRONT:$VERSION"
+
+      - name: Déconnexion
+        if: always()
+        run: docker logout "$REGISTRY"

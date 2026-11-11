@@ -1,0 +1,71 @@
+# PostgreSQL : StatefulSet + Service headless + un PVC par pod (data-postgres-0).
+# Configuration : ConfigMaps postgres-config (env) et postgres-init (schéma SQL), voir configmap-postgres.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres            # DNS "postgres" dans le namespace, et "postgres-0.postgres"
+  namespace: formini-go
+  labels: { app: postgres }
+spec:
+  clusterIP: None           # headless : identité par pod, pas de répartition
+  selector: { app: postgres }
+  ports: [{ name: postgres, port: 5432, targetPort: postgres }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: formini-go
+  labels: { app: postgres }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports: [{ name: postgres, containerPort: 5432 }]
+          # configuration (ConfigMap) + secret (Secret) : rien n'est écrit en dur ici
+          envFrom:
+            - configMapRef: { name: postgres-config }
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: go-secret, key: POSTGRES_PASSWORD }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, formini, -d, formini]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, formini, -d, formini]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

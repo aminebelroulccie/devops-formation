@@ -675,6 +675,50 @@ spec:
     Three levels of metadata is what loses beginners: the Deployment's, the pod template's, and the selector that links them. Show that the template labels and the selector are identical, otherwise kubectl refuses. The $(VAR) syntax is Kubernetes' native variable expansion.
   </aside>
 </section>
+<section>
+  <span class="eyebrow">The StatefulSet</span>
+  <h2>Declaring the database</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="k8s/postgres.yaml" class="xs"><code class="language-yaml">apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: formini-tasks }
+spec:
+  clusterIP: None            # headless: DNS points at the pod, not at a virtual IP
+  selector: { app: postgres }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres, namespace: formini-tasks }
+spec:
+  serviceName: postgres      # the Service that gives the pod its identity
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - { name: postgres, image: postgres:16-alpine,
+            volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }] }
+  volumeClaimTemplates:      # one PVC per pod: data-postgres-0
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 1Gi } }</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>Deployment</dt><dd>Interchangeable pods, random names: perfect for the application.</dd></div>
+        <div><dt>StatefulSet</dt><dd>Pod <code>postgres-0</code>: stable name, stable DNS, <strong>its own</strong> volume.</dd></div>
+        <div><dt>PVC per pod</dt><dd><code>data-postgres-0</code>, created from the template, survives deleting the StatefulSet.</dd></div>
+        <div><dt>headless</dt><dd><code>clusterIP: None</code>: no load balancing, one identity per pod.</dd></div>
+      </dl>
+      <p class="small">Rule: anything with state (database, message queue, persistent cache) is declared as a StatefulSet.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Why not a Deployment for the database? Because a Deployment treats its pods as interchangeable: a new name every time, and nothing ties a pod to a specific volume; with two replicas, two postgres processes would write to the same disk. The StatefulSet gives an identity: postgres-0 stays postgres-0, gets its data-postgres-0 PVC back, and pods start and stop in order. Stress the opposite trap: deleting the StatefulSet does not delete the PVC, on purpose, the data survives. In the lab they verify it by deleting the pod. In production you would use an operator (CloudNativePG) or a managed service, but there is a StatefulSet underneath.
+  </aside>
+</section>
 
 <section>
   <span class="eyebrow">Exposing</span>
@@ -682,7 +726,7 @@ spec:
   <div class="cols-3">
     <div class="card">
       <h3>ClusterIP</h3>
-      <p>Reachable <strong>inside</strong> the cluster only, by its DNS name. The default. Perfect for the database.</p>
+      <p>Reachable <strong>inside</strong> the cluster only, by its DNS name. The default. For the database: the <em>headless</em> variant (<code>clusterIP: None</code>).</p>
       <p class="small"><code>postgres:5432</code></p>
     </div>
     <div class="card accent">
@@ -930,7 +974,7 @@ kubectl rollout undo deploy/tasks --to-revision=2</code></pre>
     <div>
       <ol class="steps">
         <li><strong>Cluster:</strong> create <code>formini</code> with kind, port 30080 exposed on 8080, Gitea registry allowed.</li>
-        <li><strong>Database:</strong> namespace, Secret, PostgreSQL with a persistent volume and a <code>postgres</code> Service.</li>
+        <li><strong>Database:</strong> namespace, Secret, PostgreSQL as a <strong>StatefulSet</strong> (PVC <code>data-postgres-0</code>) and a headless <code>postgres</code> Service.</li>
         <li><strong>Application:</strong> Deployment with 2 replicas, probes and resources, NodePort Service. Open <code>http://localhost:8080</code>.</li>
         <li><strong>Scale:</strong> go to 4 replicas, check that all four are serving.</li>
         <li><strong>Update:</strong> new image tagged by CI, then a non-existent tag, then <code>rollout undo</code>.</li>

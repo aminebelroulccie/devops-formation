@@ -1,0 +1,72 @@
+# Redis : lui aussi en StatefulSet, car on lui demande de persister (--save 60 1) :
+# les compteurs survivent au redémarrage. Un cache purement volatil serait un
+# Deployment avec un volume emptyDir (voir l'exercice du README).
+# Mot de passe obligatoire (--requirepass), lu dans le Secret go-secret.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache               # DNS "cache" : la même URL qu'avec Compose (redis://cache:6379/0)
+  namespace: formini-go
+  labels: { app: cache }
+spec:
+  clusterIP: None
+  selector: { app: cache }
+  ports: [{ name: redis, port: 6379, targetPort: redis }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cache
+  namespace: formini-go
+  labels: { app: cache }
+spec:
+  serviceName: cache
+  replicas: 1
+  selector:
+    matchLabels: { app: cache }
+  template:
+    metadata:
+      labels: { app: cache }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          # le fichier de configuration vient du ConfigMap redis-config ; le mot de passe du Secret
+          command: ["sh", "-c"]
+          args: ['exec redis-server /etc/redis/redis.conf --requirepass "$REDIS_PASSWORD"']
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: go-secret, key: REDIS_PASSWORD }
+          ports: [{ name: redis, containerPort: 6379 }]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/redis
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: [sh, -c, 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: [sh, -c, 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: redis-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 256Mi

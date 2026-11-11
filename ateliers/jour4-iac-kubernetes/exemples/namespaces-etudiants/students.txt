@@ -1,0 +1,8 @@
+# Un login par ligne (minuscules, chiffres, tirets) : devient le nom du namespace,
+# du ServiceAccount et du fichier kubeconfig. Lignes vides et commentaires ignorés.
+formini-a1
+formini-a2
+formini-a3
+formini-b1
+formini-b2
+formini-b3

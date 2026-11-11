@@ -181,7 +181,7 @@ Après vérification console : créer le cluster kind sur la VM formateur et
 pré-tirer les images (`deploy.sh` avec l'image de secours), pour que la démo
 de 13:00 ne dépende pas du réseau.
 
-## 13:00 – 13:30 · Kubernetes (slides 20–28)
+## 13:00 – 13:30 · Kubernetes (slides 20–29)
 
 ### Pourquoi, architecture, objets (21–23)
 
@@ -196,7 +196,7 @@ conteneur Docker : `docker ps` au projecteur le montre.
 Objets (23) : dessiner au tableau Deployment → ReplicaSet → Pods ← Service.
 « On ne crée jamais un Pod à la main. »
 
-### Deployment, Service, Secret, probes (24–27)
+### Deployment, Service, Secret, probes (24–28)
 
 **Démo 6**, sur le cluster préparé :
 
@@ -204,7 +204,7 @@ Objets (23) : dessiner au tableau Deployment → ReplicaSet → Pods ← Service
 kubectl get nodes
 kubectl apply -f k8s/namespace.yaml && kubectl config set-context --current --namespace=formini-tasks
 kubectl apply -f k8s/secret.yaml -f k8s/postgres.yaml
-kubectl get pods -w          # laisser postgres passer Running
+kubectl get pods -w          # laisser postgres-0 passer Running (StatefulSet : nom stable, PVC data-postgres-0)
 kubectl apply -f k8s/app.yaml -f k8s/service.yaml
 kubectl get pods -w
 curl -s localhost:8080/health
@@ -213,19 +213,19 @@ curl -s localhost:8080/health
 Pendant les attentes, lire les YAML au projecteur. Points qui perdent les
 débutants : les trois niveaux de métadonnées (slide 24), le `selector` qui doit
 égaler les `labels` du template, `postgres` dans l'URL qui est un nom DNS de
-Service. Sur le Secret (26) : `kubectl get secret tasks-secret -o yaml` puis
+Service. Sur le Secret (27) : `kubectl get secret tasks-secret -o yaml` puis
 `base64 -d` pour casser l'illusion de chiffrement.
 
-Probes (27) : « sans readiness, pas de rolling update sûr ». Garder cette
+Probes (28) : « sans readiness, pas de rolling update sûr ». Garder cette
 phrase pour la démo suivante.
 
-### kubectl et kind (28)
+### kubectl et kind (29)
 
 Écrire au tableau, et laisser toute l'après-midi : **get pods → describe pod →
 logs**. Puis `kubectl delete pod -l app=tasks` au projecteur : les pods
 reviennent seuls. C'est la réconciliation.
 
-## 13:30 – 14:00 · Échelle et rolling update (slides 29–32)
+## 13:30 – 14:00 · Échelle et rolling update (slides 30–33)
 
 **Démo 7**, deux terminaux côte à côte :
 
@@ -242,10 +242,10 @@ kubectl rollout status deploy/tasks
 kubectl get rs
 ```
 
-Faire constater : que des 200 dans le terminal 2. Dérouler la frise (slide 31)
+Faire constater : que des 200 dans le terminal 2. Dérouler la frise (slide 32)
 en montrant `get pods -w` : un v2 apparaît, passe Ready, un v1 disparaît.
 
-Puis la panne volontaire (32) :
+Puis la panne volontaire (33) :
 ```bash
 kubectl set image deploy/tasks tasks=gitea.formini.local:3000/formini/formini-tasks:v9.9.9
 kubectl get pods                    # ImagePullBackOff sur un seul pod
@@ -257,7 +257,7 @@ Toujours que des 200. Boucler sur DORA : « temps de rétablissement : une
 commande ». Si le temps manque, sauter la variante `/health` à 503 (elle est
 dans la fiche).
 
-## 14:00 – 15:30 · Défi en équipe, partie 2 (slide 33)
+## 14:00 – 15:30 · Défi en équipe, partie 2 (slide 34)
 
 **Avant de lancer** : traiter les retardataires du destroy. Personne ne
 commence Kubernetes avec une instance AWS vivante.
@@ -273,7 +273,7 @@ du dossier `k8s/` · 15:25 une équipe présente.
 Pannes, par fréquence :
 
 1. **ImagePullBackOff** : `gitea.formini.local` non résolu depuis le nœud (le `/etc/hosts` du nœud, pas celui de la VM), `hosts.toml` mal placé, dépôt d'images privé (pousser le dépôt en public dans Gitea, ou créer un `imagePullSecrets`). Plan B qui marche toujours : `docker pull` sur la VM puis `kind load docker-image … --name formini`.
-2. **CrashLoopBackOff** sur tasks : Secret appliqué après le Deployment, ou mot de passe différent entre le Secret et un postgres déjà initialisé (supprimer le PVC et recommencer).
+2. **CrashLoopBackOff** sur tasks : Secret appliqué après le Deployment, ou mot de passe différent entre le Secret et un postgres déjà initialisé (supprimer le PVC `data-postgres-0` et recommencer : le StatefulSet ne le supprime jamais seul).
 3. Pod jamais Ready : postgres pas encore prêt au démarrage, se résout seul en 30 secondes ; sinon `kubectl exec deploy/tasks -- wget -qO- localhost:5000/health`.
 4. `localhost:8080` muet : cluster créé sans `--config`, donc pas de mapping de port. Recréer le cluster (une minute).
 5. Codes ≠ 200 pendant le rolling update : `readinessProbe` absente ou `maxUnavailable` laissé à 25 %. C'est le moment d'apprentissage le plus précieux de l'après-midi, ne pas le déminer trop vite.
@@ -283,7 +283,20 @@ Passer voir chaque équipe au moment du rolling update (vers 15:00) : c'est là
 que les questions arrivent. **15:25** : une équipe montre sa boucle `curl` et
 son `rollout undo` au projecteur, deux minutes.
 
-## 15:30 – 16:00 · Bilan (slides 34–35)
+**Équipes en avance, ou qui ont suivi la pile Go + React des jours 2 et 3 :**
+`ateliers/jour4-iac-kubernetes/exemples/go-react/` (namespace `formini-go`, port 30081 → 8081 si
+le cluster a été créé avec son `kind-config.yaml`, sinon `port-forward`). Bon support pour la
+question « Deployment ou StatefulSet ? » : quatre objets, deux de chaque.
+
+**Pour aller plus loin après la formation (ne pas lancer en séance, 3 machines payantes et 20 min
+de Kubespray) :** `ateliers/jour4-iac-kubernetes/exemples/terraform-kubespray/` — trois nœuds AWS,
+un sous-réseau, une Internet Gateway, trois Elastic IP, inventaire Kubespray généré. À mentionner au bilan
+comme réponse à « et sans kind, comment on fait ? ». Sur ce cluster partagé,
+`exemples/namespaces-etudiants/` donne à chacun des six un namespace et un kubeconfig limité à
+celui-ci (`generate.sh --apply`, `make-kubeconfigs.sh`, `verify.sh`) : préparer avant la séance,
+distribuer les fichiers un par un.
+
+## 15:30 – 16:00 · Bilan (slides 35–36)
 
 ### 15:30 – 15:40 · Appel « destroy vérifié »
 
@@ -298,7 +311,7 @@ Révoquer les clés IAM après la formation (jour 5, 16:00).
 
 ### 15:40 – 15:55 · Ce que l'on retient
 
-Les trois cartes de la slide 34. Tour de table : une chose apprise, une chose
+Les trois cartes de la slide 35. Tour de table : une chose apprise, une chose
 floue. Points flous habituels : la différence ReplicaSet/Deployment (répondre :
 le ReplicaSet est un détail d'implémentation du rolling update), ce qu'est
 vraiment le state Terraform (répondre : la mémoire, sans elle il recrée tout).

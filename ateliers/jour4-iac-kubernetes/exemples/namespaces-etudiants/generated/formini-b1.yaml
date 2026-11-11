@@ -1,0 +1,78 @@
+# Gabarit d'un espace étudiant. formini-b1 est remplacé par generate.sh.
+#
+#   Namespace        formini-b1           l'espace de l'étudiant
+#   ServiceAccount   formini-b1           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-b1-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-b1-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-b1
+  labels:
+    project: formation-devops
+    student: formini-b1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-b1
+  namespace: formini-b1
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-b1-token
+  namespace: formini-b1
+  annotations:
+    kubernetes.io/service-account.name: formini-b1
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-b1-admin
+  namespace: formini-b1
+subjects:
+  - kind: ServiceAccount
+    name: formini-b1
+    namespace: formini-b1
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-b1
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-b1
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }

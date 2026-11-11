@@ -61,7 +61,7 @@ kubectl -n "$NS" set image deploy/tasks "tasks=$IMAGE:$IMAGE_TAG" >/dev/null
 kubectl -n "$NS" annotate deploy/tasks "kubernetes.io/change-cause=$IMAGE_TAG" --overwrite >/dev/null
 
 echo "==> Attente de PostgreSQL puis de l'application"
-kubectl -n "$NS" rollout status deploy/postgres --timeout=180s
+kubectl -n "$NS" rollout status statefulset/postgres --timeout=180s
 kubectl -n "$NS" rollout status deploy/tasks --timeout=180s
 
 echo

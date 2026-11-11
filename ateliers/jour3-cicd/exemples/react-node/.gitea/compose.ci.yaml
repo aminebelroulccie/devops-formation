@@ -1,0 +1,9 @@
+# Surcharge Compose pour la CI : aucun port publié sur l'hôte.
+# Les tests interrogent l'API depuis le conteneur frontend, sur le réseau interne du projet,
+# donc plusieurs runs (ou deux runners sur la même VM) peuvent tourner en même temps.
+# Nécessite Docker Compose ≥ 2.24 (mot-clé !reset).
+services:
+  frontend:
+    ports: !reset []
+  api:
+    ports: !reset []

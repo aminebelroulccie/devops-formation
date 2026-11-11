@@ -1,0 +1,8 @@
+# Un namespace par application : formini-go. Tout le reste vit dedans.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-go
+  labels:
+    project: formation-devops
+    app.kubernetes.io/part-of: formini-go

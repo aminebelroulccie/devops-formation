@@ -1,0 +1,126 @@
+# API Go : sans état → Deployment (2 répliques, rolling update sans interruption) + Service ClusterIP.
+# Le Service s'appelle "api" : c'est le nom que nginx utilise dans le front (proxy_pass http://api:8080).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: formini-go
+  labels: { app: api }
+  annotations:
+    kubernetes.io/change-cause: "v1.0.0 - déploiement initial"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels: { app: api }
+  template:
+    metadata:
+      labels: { app: api }
+    spec:
+      # initContainers : l'équivalent de depends_on/condition: service_healthy de Compose.
+      # Chacun boucle jusqu'à ce que le service attendu réponde, puis le conteneur principal démarre.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          envFrom:
+            - configMapRef: { name: api-config }
+          command: [sh, -c]
+          args:
+            - |
+              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -q; do
+                echo "en attente de PostgreSQL ($POSTGRES_HOST:$POSTGRES_PORT)…"; sleep 2
+              done
+              echo "PostgreSQL prêt"
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+        - name: wait-for-redis
+          image: redis:7-alpine
+          envFrom:
+            - configMapRef: { name: api-config }
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: go-secret, key: REDIS_PASSWORD } }
+          command: [sh, -c]
+          args:
+            - |
+              until redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --no-auth-warning ping 2>/dev/null | grep -q PONG; do
+                echo "en attente de Redis ($REDIS_HOST:$REDIS_PORT)…"; sleep 2
+              done
+              echo "Redis prêt"
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 64Mi }
+      containers:
+        - name: api
+          image: gitea.formini.local:3000/equipe-a/formini-go-api:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          # 1. la configuration vient du ConfigMap api-config (hôtes, ports, noms)
+          envFrom:
+            - configMapRef: { name: api-config }
+          # 2. les secrets viennent du Secret ; 3. les URL sont assemblées par $(VAR)
+          #    (expansion Kubernetes : chaque variable doit être déclarée AVANT dans cette liste)
+          env:
+            - name: POSTGRES_HOST
+              valueFrom: { configMapKeyRef: { name: api-config, key: POSTGRES_HOST } }
+            - name: POSTGRES_PORT
+              valueFrom: { configMapKeyRef: { name: api-config, key: POSTGRES_PORT } }
+            - name: POSTGRES_DB
+              valueFrom: { configMapKeyRef: { name: api-config, key: POSTGRES_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { configMapKeyRef: { name: api-config, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: go-secret, key: POSTGRES_PASSWORD } }
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+            - name: REDIS_HOST
+              valueFrom: { configMapKeyRef: { name: api-config, key: REDIS_HOST } }
+            - name: REDIS_PORT
+              valueFrom: { configMapKeyRef: { name: api-config, key: REDIS_PORT } }
+            - name: REDIS_DB
+              valueFrom: { configMapKeyRef: { name: api-config, key: REDIS_DB } }
+            - name: REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: go-secret, key: REDIS_PASSWORD } }
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/$(REDIS_DB)"
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      # Si le dépôt d'images est privé : kubectl create secret docker-registry gitea-registry ...
+      # imagePullSecrets:
+      #   - name: gitea-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: formini-go
+  labels: { app: api }
+spec:
+  type: ClusterIP
+  selector: { app: api }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

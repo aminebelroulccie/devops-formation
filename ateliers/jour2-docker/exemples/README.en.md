@@ -29,7 +29,8 @@ and Redis. Same structure, same API contract, only the `api/` folder differs.
 | Rust | tiny_http, postgres, redis | [`stack-rust/`](stack-rust/README.en.md) |
 
 Show it after the running example's `compose.yaml`: `cp .env.example .env && docker compose up -d --build`,
-then <http://localhost:8080>.
+then <http://localhost:8080>. The Gitea Actions pipelines for these four stacks are in Day 3:
+[`ateliers/jour3-cicd/exemples/`](../../jour3-cicd/exemples/README.en.md).
 
 ## How to use them in the course
 

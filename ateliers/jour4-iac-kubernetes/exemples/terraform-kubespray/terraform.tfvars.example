@@ -1,0 +1,11 @@
+# Copier en terraform.tfvars et adapter. Ce fichier-là n'est pas commité (.gitignore).
+
+owner           = "formini-a1"
+region          = "eu-west-3"
+node_count      = 3
+instance_type   = "t3.medium"        # minimum pour Kubespray (2 vCPU, 4 Go)
+root_volume_gb  = 30
+public_key_path = "~/.ssh/id_ed25519.pub"
+
+# Votre IP publique en /32 (curl -s ifconfig.me) ; 0.0.0.0/0 pour la formation.
+admin_cidr = "0.0.0.0/0"

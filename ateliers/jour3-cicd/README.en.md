@@ -320,6 +320,9 @@ docker pull gitea.formini.local:3000/equipe-a/formini-tasks:v1.0.0
    to `.gitea/pull_request_template.md` so that every PR recalls the checklist.
 5. **Notification**: a final step that calls a webhook (Mattermost, Slack,
    Discord…) with `curl` when `build` fails (`if: failure()`).
+6. **Other languages**: the same pipelines (lint, tests, full-stack integration test with
+   `docker compose`, scan, publish, release) for the Day 2 Go, Python, Node and Rust stacks are
+   in [`exemples/`](exemples/README.en.md). Pick the one for your language.
 
 ---
 

@@ -1,0 +1,78 @@
+# Gabarit d'un espace étudiant. __STUDENT__ est remplacé par generate.sh.
+#
+#   Namespace        __STUDENT__           l'espace de l'étudiant
+#   ServiceAccount   __STUDENT__           son identité (un jeton → un kubeconfig)
+#   RoleBinding      __STUDENT__-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           __STUDENT__-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __STUDENT__
+  labels:
+    project: formation-devops
+    student: __STUDENT__
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: __STUDENT__
+  namespace: __STUDENT__
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: __STUDENT__-token
+  namespace: __STUDENT__
+  annotations:
+    kubernetes.io/service-account.name: __STUDENT__
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: __STUDENT__-admin
+  namespace: __STUDENT__
+subjects:
+  - kind: ServiceAccount
+    name: __STUDENT__
+    namespace: __STUDENT__
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: __STUDENT__
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: __STUDENT__
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }

@@ -1,0 +1,17 @@
+# ConfigMap de Redis : le fichier redis.conf, monté dans /etc/redis (redis.yaml).
+# requirepass n'y figure pas : le mot de passe vient du Secret, passé en argument au démarrage.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: formini-go
+  labels: { app: cache }
+data:
+  redis.conf: |
+    # persistance légère : un snapshot si au moins 1 écriture en 60 s
+    dir /data
+    save 60 1
+    appendonly no
+    loglevel warning
+    maxmemory 64mb
+    maxmemory-policy allkeys-lru

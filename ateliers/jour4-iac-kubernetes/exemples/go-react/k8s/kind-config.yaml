@@ -1,0 +1,20 @@
+# kind create cluster --name formini --config kind-config.yaml
+# Identique à solution/k8s/kind-config.yaml, plus le port 30081 pour ce front.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080      # Formini Tasks (fil rouge)  -> http://localhost:8080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30081      # front React de cet exemple -> http://localhost:8081
+        hostPort: 8081
+        protocol: TCP
+  - role: worker
+  - role: worker
+
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"

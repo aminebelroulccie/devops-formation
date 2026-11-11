@@ -1,0 +1,2 @@
+# Les kubeconfigs contiennent les jetons des étudiants : jamais dans Git.
+kubeconfigs/

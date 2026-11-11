@@ -1,35 +1,39 @@
-# Base de données : un seul exemplaire, avec un volume persistant.
-# (En production : StatefulSet, opérateur, ou service managé type RDS.)
+# Base de données : un StatefulSet, pas un Deployment.
+# Ce qu'il apporte à une base de données :
+#   - un nom de pod stable (postgres-0) et une entrée DNS stable (postgres-0.postgres) ;
+#   - un volume par réplique, créé automatiquement (volumeClaimTemplates → PVC data-postgres-0),
+#     qui SURVIT à la suppression du StatefulSet ;
+#   - un démarrage et un arrêt ordonnés, jamais deux pods sur le même volume.
+# (En production : opérateur PostgreSQL ou service managé type RDS, mais toujours un StatefulSet dessous.)
 apiVersion: v1
-kind: PersistentVolumeClaim
+kind: Service
 metadata:
-  name: postgres-data
+  name: postgres            # => DNS "postgres" dans le namespace (et postgres-0.postgres)
   namespace: formini-tasks
 spec:
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 1Gi
+  clusterIP: None           # service "headless" : le DNS pointe directement sur le pod
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: formini-tasks
 spec:
+  serviceName: postgres     # le Service headless qui donne leur identité aux pods
   replicas: 1
-  strategy:
-    type: Recreate          # jamais deux postgres sur le même volume
   selector:
     matchLabels: { app: postgres }
   template:
     metadata:
       labels: { app: postgres }
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: postgres
           image: postgres:16-alpine
-          ports: [{ containerPort: 5432 }]
+          ports: [{ containerPort: 5432, name: postgres }]
           env:
             - name: POSTGRES_USER
               value: formini
@@ -48,20 +52,21 @@ spec:
               command: [pg_isready, -U, formini, -d, tasks]
             initialDelaySeconds: 5
             periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, formini, -d, tasks]
+            initialDelaySeconds: 30
+            periodSeconds: 10
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits:   { cpu: 500m, memory: 256Mi }
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: postgres-data
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres            # => DNS "postgres" dans le namespace
-  namespace: formini-tasks
-spec:
-  type: ClusterIP
-  selector: { app: postgres }
-  ports: [{ port: 5432, targetPort: 5432 }]
+  # Un PVC par pod, nommé <template>-<pod> : data-postgres-0.
+  # kubectl delete statefulset postgres ne le supprime PAS : les données restent.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

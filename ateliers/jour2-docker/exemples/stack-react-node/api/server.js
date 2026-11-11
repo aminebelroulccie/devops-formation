@@ -5,6 +5,7 @@
 //   POST /api/tasks   → {"title": "..."} crée une tâche
 //   GET  /api/hits    → incrémente et renvoie le compteur Redis de ce service
 import os from 'node:os'
+import { pathToFileURL } from 'node:url'
 import express from 'express'
 import pg from 'pg'
 import Redis from 'ioredis'
@@ -13,7 +14,7 @@ const SERVICE = 'api-node'
 const PORT = process.env.PORT || 8080
 
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 2000 })
-const cache = new Redis(process.env.REDIS_URL || 'redis://cache:6379/0', { lazyConnect: false, maxRetriesPerRequest: 1 })
+const cache = new Redis(process.env.REDIS_URL || 'redis://cache:6379/0', { lazyConnect: true, maxRetriesPerRequest: 1 })
 cache.on('error', (err) => console.error('redis :', err.message))
 
 const app = express()
@@ -66,11 +67,17 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message })
 })
 
-const server = app.listen(PORT, () => console.log(`${SERVICE} en écoute sur :${PORT}`))
+export default app
 
-// arrêt propre sur SIGTERM (docker stop) : on ferme les connexions avant de quitter
-process.on('SIGTERM', async () => {
-  server.close()
-  await Promise.allSettled([db.end(), cache.quit()])
-  process.exit(0)
-})
+// Démarrage du serveur uniquement quand le fichier est exécuté directement
+// (node server.js) ; les tests importent `app` sans ouvrir de port.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const server = app.listen(PORT, () => console.log(`${SERVICE} en écoute sur :${PORT}`))
+
+  // arrêt propre sur SIGTERM (docker stop) : on ferme les connexions avant de quitter
+  process.on('SIGTERM', async () => {
+    server.close()
+    await Promise.allSettled([db.end(), cache.quit()])
+    process.exit(0)
+  })
+}

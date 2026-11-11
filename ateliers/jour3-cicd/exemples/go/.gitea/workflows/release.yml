@@ -1,0 +1,61 @@
+# Livraison d'une version — pile Formini Go
+#
+# Déclenché par un tag Git qui commence par "v" (v1.0.0, v1.2.3…).
+# Les deux images (API et front) sont étiquetées avec le nom du tag.
+#
+#   git tag -a v1.0.0 -m "Première version livrée"
+#   git push origin v1.0.0
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  REGISTRY: gitea.formini.local:3000
+  IMAGE_API: gitea.formini.local:3000/equipe-a/formini-go-api
+  IMAGE_FRONT: gitea.formini.local:3000/equipe-a/formini-go-frontend
+  VERSION: ${{ gitea.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # On ne livre jamais sans tests : mêmes étapes que le job api de ci.yml.
+
+      # Pas de Go sur la VM : on utilise l'image officielle via docker run. Le cache des
+      # modules est un volume Docker nommé, conservé d'un run à l'autre (rapide dès le 2e run).
+      - name: Format, vet et tests (conteneur golang)
+        run: |
+          docker run --rm -v "$PWD/api:/src" -w /src -v formini-go-mod:/go/pkg/mod \
+            golang:1.23-alpine sh -ec '
+              go mod tidy
+              echo "Fichiers que gofmt reformaterait (informatif) :"; gofmt -l . || true
+              go vet ./...
+              go test ./... -v'
+
+      - name: Construction des images
+        run: |
+          docker build --pull -t "$IMAGE_API:$VERSION" api
+          docker build --pull -t "$IMAGE_FRONT:$VERSION" frontend
+
+      - name: Analyse de sécurité
+        run: |
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_API:$VERSION"
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_FRONT:$VERSION"
+
+      - name: Connexion au registre
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Publication
+        run: |
+          docker push "$IMAGE_API:$VERSION"
+          docker push "$IMAGE_FRONT:$VERSION"
+          echo "Version $VERSION publiée : $IMAGE_API:$VERSION et $IMAGE_FRONT:$VERSION"
+
+      - name: Déconnexion
+        if: always()
+        run: docker logout "$REGISTRY"

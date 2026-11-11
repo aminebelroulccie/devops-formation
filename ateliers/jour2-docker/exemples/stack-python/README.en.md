@@ -17,7 +17,7 @@ same structure and API contract: only the `api/` folder differs.
 
 ```bash
 cd ateliers/jour2-docker/exemples/stack-python
-cp .env.example .env            # change the password
+cp .env.example .env            # change both passwords (PostgreSQL, Redis)
 docker compose up -d --build    # first time: 1 to 2 min
 docker compose ps               # 4 services; db and cache "healthy"
 ```
@@ -44,7 +44,7 @@ curl -s localhost:8081/api/hits
 ## What to observe
 
 1. **Service discovery**: the API reaches the database by its name `db` and the cache by `cache`
-   (`DATABASE_URL`, `REDIS_URL` in `compose.yaml`); nginx reaches the API by its name `api`
+   (`DATABASE_URL`, `REDIS_URL` in `compose.yaml`; Redis requires a password, `--requirepass`); nginx reaches the API by its name `api`
    (`frontend/nginx.conf`). No hard-coded IPs.
 2. **Start-up order**: `depends_on … condition: service_healthy`. The API only starts once
    `pg_isready` and `redis-cli ping` pass. Comment those lines out and restart to see the

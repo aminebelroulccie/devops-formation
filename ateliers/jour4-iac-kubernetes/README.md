@@ -23,7 +23,7 @@ sans, consultez-les quand vous êtes bloqué plus de dix minutes.
 - écrire et lire un projet Terraform (providers, resources, variables, outputs, state) ;
 - dérouler `init → plan → apply → destroy` sur AWS en lisant le plan ;
 - configurer un serveur avec un playbook Ansible idempotent, sans jamais vous y connecter à la main ;
-- déployer une application et sa base sur Kubernetes avec Deployment, Service, Secret, PVC ;
+- déployer une application et sa base sur Kubernetes avec Deployment, StatefulSet, Service, Secret, PVC ;
 - mettre à l'échelle, faire une mise à jour progressive sans coupure, et revenir en arrière.
 
 ## Prérequis
@@ -191,6 +191,10 @@ terraform state list       # vide
 - Créez un rôle `docker` avec `ansible-galaxy init roles/docker` et déplacez-y les tâches Docker.
 - Ajoutez un output Terraform `ssh_config` qui génère un bloc `Host formini-aws` prêt pour `~/.ssh/config`.
 - Passez l'état en backend S3 (bucket fourni par le formateur) : `backend "s3"` dans `versions.tf`, `terraform init -migrate-state`.
+- **Vers un vrai cluster** : [`exemples/terraform-kubespray/`](exemples/terraform-kubespray/README.md)
+  crée trois nœuds dans un même sous-réseau, une Internet Gateway et trois Elastic IP sur AWS, avec
+  l'inventaire Kubespray généré par Terraform. Suite logique de la partie 2 pour
+  remplacer kind par un cluster multi-nœuds.
 
 ---
 
@@ -253,15 +257,26 @@ kubectl get secret tasks-secret -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64
 
 ### 2.3 La base de données
 
-`k8s/postgres.yaml` contient un PVC de 1 Gi, un Deployment (1 réplique,
-stratégie `Recreate`), un Service ClusterIP nommé `postgres`.
+Une base de données n'est pas une application sans état : `k8s/postgres.yaml` la déclare en
+**StatefulSet**, pas en Deployment. Lisez le fichier et repérez :
+
+- le Service **headless** (`clusterIP: None`) nommé `postgres` : le DNS `postgres` pointe
+  directement sur le pod, et chaque pod a aussi un nom stable, `postgres-0.postgres` ;
+- `serviceName`, qui relie le StatefulSet à ce Service ;
+- `volumeClaimTemplates` : un PVC **par pod**, créé automatiquement et nommé `data-postgres-0`.
+  Contrairement au Deployment, le pod a toujours le même nom et retrouve toujours le même volume.
 
 ```bash
 kubectl apply -f k8s/postgres.yaml
-kubectl get pvc                 # Bound (kind a une StorageClass "standard" par défaut)
-kubectl get pods -w             # postgres-xxx 1/1 Running
-kubectl logs deploy/postgres | tail -5
+kubectl get statefulset,pvc     # postgres 1/1 ; data-postgres-0 Bound (StorageClass "standard" de kind)
+kubectl get pods -w             # postgres-0 1/1 Running  (nom stable, pas de suffixe aléatoire)
+kubectl logs postgres-0 | tail -5
 ```
+
+> **Ce que le StatefulSet garantit** : `kubectl delete pod postgres-0` recrée un pod qui s'appelle
+> encore `postgres-0` et remonte le **même** volume. Et `kubectl delete statefulset postgres` ne
+> supprime **pas** le PVC : les données survivent, il faut `kubectl delete pvc data-postgres-0`
+> pour les effacer volontairement.
 
 ### 2.4 L'application
 
@@ -340,8 +355,8 @@ pods ne passent jamais `Ready` et que le trafic reste sur les anciens. Puis
 
 ### Critères de réussite
 
-- [ ] `kubectl get all -n formini-tasks` montre : 1 postgres, N tasks, 2 Services, 2 Deployments, ReplicaSets
-- [ ] Une tâche créée dans l'interface survit à `kubectl delete pod -l app=postgres`
+- [ ] `kubectl get all -n formini-tasks` montre : le pod `postgres-0`, N pods tasks, 2 Services, 1 Deployment, 1 StatefulSet, des ReplicaSets
+- [ ] Une tâche créée dans l'interface survit à `kubectl delete pod postgres-0` (le pod revient avec le même nom et le même volume)
 - [ ] Zéro code ≠ 200 dans la boucle `curl` pendant la mise à jour v1.0.0 → v1.1.0
 - [ ] Le `rollout undo` après le tag inexistant ramène v1.1.0 en moins d'une minute
 - [ ] `secret.yaml` absent de `git status`
@@ -371,6 +386,16 @@ puis un objet `Ingress` qui route `tasks.localtest.me` vers le Service `tasks`
 
 ---
 
+**Pile Go + React complète sur Kubernetes** : [`exemples/go-react/`](exemples/go-react/README.md)
+déploie la pile du jour 2 (front React, API Go, PostgreSQL, Redis) dans son propre namespace
+`formini-go`, avec les deux bases en StatefulSet, le schéma SQL en ConfigMap et `kubectl apply -k`.
+Exercices : identité stable des pods, suppression sans perte, Redis volatil, rolling update.
+
+**Cluster partagé, un namespace par étudiant** : [`exemples/namespaces-etudiants/`](exemples/namespaces-etudiants/README.md)
+crée pour chaque login un namespace, un ServiceAccount, un RoleBinding sur le ClusterRole `admin`
+(tous les droits dedans, aucun dehors), un quota et un LimitRange, puis génère un kubeconfig par
+étudiant et vérifie l'isolation avec `kubectl auth can-i`.
+
 ## Dépannage
 
 | Symptôme | Causes probables | Vérifier |
@@ -378,7 +403,7 @@ puis un objet `Ingress` qui route `tasks.localtest.me` vers le Service `tasks`
 | `ImagePullBackOff` / `ErrImagePull` | Nom d'image faux, registre non autorisé en HTTP sur le nœud, `gitea.formini.local` non résolu depuis le nœud, dépôt d'images privé | `kubectl describe pod` (section Events), `docker exec formini-worker crictl pull <image>`, `docker exec formini-worker cat /etc/hosts`. Dépôt privé : créer un `imagePullSecrets` avec `kubectl create secret docker-registry`. Plan B : `kind load docker-image`. |
 | `CrashLoopBackOff` sur tasks | `DATABASE_URL` invalide, Secret absent, postgres pas encore prêt | `kubectl logs deploy/tasks --previous`, `kubectl get secret tasks-secret`, `kubectl get pods -l app=postgres` |
 | Pod tasks jamais `Ready` (0/1) | `/health` renvoie 503 car la base est injoignable, ou le port de la probe est faux | `kubectl exec deploy/tasks -- wget -qO- localhost:5000/health`, `kubectl describe pod` |
-| PVC `Pending` | Pas de StorageClass par défaut (rare sur kind), `accessModes` incompatible | `kubectl get storageclass`, `kubectl describe pvc postgres-data` |
+| PVC `Pending` | Pas de StorageClass par défaut (rare sur kind), `accessModes` incompatible | `kubectl get storageclass`, `kubectl describe pvc data-postgres-0` |
 | `localhost:8080` ne répond pas | Cluster créé sans `kind-config.yaml`, `nodePort` ≠ 30080, Service sans endpoints | `kubectl get svc tasks`, `kubectl get endpoints tasks`, `docker port formini-control-plane` |
 | Terraform : `UnauthorizedOperation` / `AccessDenied` | Identifiants faux ou non exportés, mauvaise région, droits IAM insuffisants | `aws sts get-caller-identity`, `env \| grep AWS` |
 | Terraform : `VcpuLimitExceeded` / `InstanceLimitExceeded` | Quota de la région atteint (toute la salle crée en même temps) | Attendre une minute, réessayer ; le formateur a demandé une hausse de quota |

@@ -144,3 +144,21 @@ fn json_response(status: u16, body: &serde_json::Value) -> Response<std::io::Cur
         .with_status_code(status)
         .with_header(Header::from_bytes("Content-Type", "application/json").unwrap())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Test unitaire sans base ni cache : la construction d'une réponse JSON.
+    #[test]
+    fn json_response_sets_status_and_content_type() {
+        let r = json_response(201, &json!({ "service": SERVICE }));
+        assert_eq!(r.status_code().0, 201);
+        let ct = r
+            .headers()
+            .iter()
+            .find(|h| h.field.equiv("Content-Type"))
+            .map(|h| h.value.as_str().to_string());
+        assert_eq!(ct.as_deref(), Some("application/json"));
+    }
+}

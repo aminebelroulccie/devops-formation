@@ -1,0 +1,18 @@
+# ConfigMap de l'API Go : toute sa configuration non secrète (hôtes, ports, noms).
+# Consommé par api.yaml (envFrom + $(VAR) pour assembler DATABASE_URL et REDIS_URL).
+# Les mots de passe sont dans le Secret go-secret, jamais ici.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: formini-go
+  labels: { app: api }
+data:
+  PORT: "8080"
+  POSTGRES_HOST: postgres        # nom du Service headless
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: formini
+  POSTGRES_USER: formini
+  REDIS_HOST: cache              # nom du Service headless
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"

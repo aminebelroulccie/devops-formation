@@ -1,0 +1,17 @@
+# kubectl apply -k k8s/   (secret.yaml doit exister : copier secret.example.yaml)
+# Tout est déclaré explicitement : les ConfigMaps sont des manifestes comme les autres.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formini-go
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - configmap-api.yaml
+  - configmap-postgres.yaml
+  - configmap-redis.yaml
+  - configmap-frontend.yaml
+  - postgres.yaml
+  - redis.yaml
+  - api.yaml
+  - frontend.yaml

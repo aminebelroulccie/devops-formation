@@ -17,7 +17,7 @@ même structure et le même contrat d'API : seul le dossier `api/` change.
 
 ```bash
 cd ateliers/jour2-docker/exemples/stack-react-node
-cp .env.example .env            # changez le mot de passe
+cp .env.example .env            # changez les deux mots de passe (PostgreSQL, Redis)
 docker compose up -d --build    # première fois : 1 à 2 min
 docker compose ps               # 4 services ; db et cache "healthy"
 ```
@@ -44,7 +44,7 @@ curl -s localhost:8081/api/hits
 ## Ce qu'il faut observer
 
 1. **Découverte de services** : l'API joint la base par son nom `db` et le cache par `cache`
-   (`DATABASE_URL`, `REDIS_URL` dans `compose.yaml`) ; nginx joint l'API par son nom `api`
+   (`DATABASE_URL`, `REDIS_URL` dans `compose.yaml` ; Redis exige un mot de passe, `--requirepass`) ; nginx joint l'API par son nom `api`
    (`frontend/nginx.conf`). Aucune IP codée en dur.
 2. **Ordre de démarrage** : `depends_on … condition: service_healthy`. L'API ne démarre qu'une
    fois `pg_isready` et `redis-cli ping` passés. Commentez ces lignes et relancez pour voir la

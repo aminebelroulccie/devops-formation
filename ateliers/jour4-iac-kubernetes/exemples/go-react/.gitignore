@@ -1,0 +1,6 @@
+.env
+k8s/secret.yaml
+node_modules/
+dist/
+target/
+__pycache__/

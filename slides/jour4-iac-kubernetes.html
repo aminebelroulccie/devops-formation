@@ -675,6 +675,50 @@ spec:
     Trois niveaux de métadonnées, c'est ce qui perd les débutants : celles du Deployment, celles du template de pod, et le selector qui les relie. Montrer que les labels du template et le selector sont identiques, sinon kubectl refuse. La syntaxe $(VAR) est l'expansion de variable native de Kubernetes.
   </aside>
 </section>
+<section>
+  <span class="eyebrow">Le StatefulSet</span>
+  <h2>Déclarer la base de données</h2>
+  <div class="cols wide-left">
+    <div>
+      <pre data-label="k8s/postgres.yaml" class="xs"><code class="language-yaml">apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: formini-tasks }
+spec:
+  clusterIP: None            # headless : le DNS pointe sur le pod, pas sur une IP virtuelle
+  selector: { app: postgres }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres, namespace: formini-tasks }
+spec:
+  serviceName: postgres      # le Service qui donne son identité au pod
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - { name: postgres, image: postgres:16-alpine,
+            volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }] }
+  volumeClaimTemplates:      # un PVC par pod : data-postgres-0
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 1Gi } }</code></pre>
+    </div>
+    <div>
+      <dl class="kv">
+        <div><dt>Deployment</dt><dd>Pods interchangeables, noms aléatoires : parfait pour l'application.</dd></div>
+        <div><dt>StatefulSet</dt><dd>Pod <code>postgres-0</code> : nom stable, DNS stable, <strong>son</strong> volume.</dd></div>
+        <div><dt>PVC par pod</dt><dd><code>data-postgres-0</code>, créé par le template, survit à la suppression du StatefulSet.</dd></div>
+        <div><dt>headless</dt><dd><code>clusterIP: None</code> : pas de répartition, une identité par pod.</dd></div>
+      </dl>
+      <p class="small">Règle : ce qui a un état (base, file de messages, cache persistant) se déclare en StatefulSet.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Pourquoi pas un Deployment pour la base ? Parce qu'un Deployment considère ses pods comme interchangeables : nouveau nom à chaque fois, et rien ne lie un pod à un volume précis ; avec deux répliques, deux postgres écriraient sur le même disque. Le StatefulSet donne une identité : postgres-0 reste postgres-0, retrouve son PVC data-postgres-0, et les pods démarrent et s'arrêtent dans l'ordre. Insister sur le piège inverse : supprimer le StatefulSet ne supprime pas le PVC, c'est voulu, les données survivent. Dans l'atelier, ils le vérifient en supprimant le pod. En production on mettra un opérateur (CloudNativePG) ou un service managé, mais c'est un StatefulSet dessous.
+  </aside>
+</section>
 
 <section>
   <span class="eyebrow">Exposer</span>
@@ -682,7 +726,7 @@ spec:
   <div class="cols-3">
     <div class="card">
       <h3>ClusterIP</h3>
-      <p>Joignable <strong>dans</strong> le cluster seulement, par son nom DNS. Le défaut. Parfait pour la base de données.</p>
+      <p>Joignable <strong>dans</strong> le cluster seulement, par son nom DNS. Le défaut. Pour la base : variante <em>headless</em> (<code>clusterIP: None</code>).</p>
       <p class="small"><code>postgres:5432</code></p>
     </div>
     <div class="card accent">
@@ -930,7 +974,7 @@ kubectl rollout undo deploy/tasks --to-revision=2</code></pre>
     <div>
       <ol class="steps">
         <li><strong>Cluster :</strong> créer <code>formini</code> avec kind, port 30080 exposé sur 8080, registre Gitea autorisé.</li>
-        <li><strong>Base :</strong> namespace, Secret, PostgreSQL avec volume persistant et Service <code>postgres</code>.</li>
+        <li><strong>Base :</strong> namespace, Secret, PostgreSQL en <strong>StatefulSet</strong> (PVC <code>data-postgres-0</code>) et Service headless <code>postgres</code>.</li>
         <li><strong>Application :</strong> Deployment 2 répliques avec probes et ressources, Service NodePort. Ouvrir <code>http://localhost:8080</code>.</li>
         <li><strong>Échelle :</strong> passer à 4 répliques, vérifier que les quatre servent.</li>
         <li><strong>Mise à jour :</strong> nouvelle image taguée par la CI, puis un tag inexistant, puis <code>rollout undo</code>.</li>

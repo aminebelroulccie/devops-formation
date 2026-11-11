@@ -1,0 +1,141 @@
+# Pipeline d'intégration continue — pile Formini Node
+# (front React + API Node + PostgreSQL + Redis, voir ateliers/jour2-docker/exemples/stack-react-node/)
+#
+# Déclenché à chaque pull request et à chaque push sur main.
+#   api          : lint + tests unitaires de l'API              (toujours)
+#   frontend     : construction du front React (vite build)     (toujours)
+#   integration  : la pile complète démarre, l'API répond, une tâche est créée (toujours)
+#   publish      : images → scan trivy → registre Gitea         (push sur main seulement)
+#
+# Runner en mode HOST (étiquette ubuntu-latest:host) : docker, trivy, python3 et node sont sur
+# la VM. Go et Rust n'y sont pas : leurs étapes tournent dans l'image officielle via docker run.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  REGISTRY: gitea.formini.local:3000
+  IMAGE_API: gitea.formini.local:3000/equipe-a/formini-node-api
+  IMAGE_FRONT: gitea.formini.local:3000/equipe-a/formini-node-frontend
+
+jobs:
+  api:
+    name: API Node — lint et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node est installé sur la VM (il fait tourner act_runner) : npm directement.
+      - name: Dépendances
+        working-directory: api
+        run: npm ci --no-audit --no-fund
+
+      - name: Vérification syntaxique
+        working-directory: api
+        run: node --check server.js
+
+      - name: Tests (node:test)
+        working-directory: api
+        run: npm test
+
+      - name: Audit des dépendances (informatif)
+        working-directory: api
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  frontend:
+    name: Front React — construction
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dépendances
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Construction (vite build)
+        working-directory: frontend
+        run: npm run build
+
+  integration:
+    name: Pile complète — test de bout en bout
+    runs-on: ubuntu-latest
+    needs: [api, frontend]
+    env:
+      # un nom de projet unique par run : deux runs simultanés ne se marchent pas dessus
+      COMPOSE_PROJECT_NAME: ci-node-${{ gitea.run_number }}
+      COMPOSE_FILE: compose.yaml:.gitea/compose.ci.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Démarrage de la pile
+        run: |
+          echo "POSTGRES_PASSWORD=ci-$RANDOM$RANDOM" > .env
+          echo "REDIS_PASSWORD=ci-$RANDOM$RANDOM" >> .env
+          docker compose up -d --build --wait --wait-timeout 300
+
+      # Les requêtes partent du conteneur frontend (même réseau que l'API) : aucun port hôte
+      # n'est publié en CI (voir compose.ci.yaml), donc aucun conflit entre runs.
+      - name: Tests de bout en bout
+        run: |
+          x() { docker compose exec -T frontend wget -qO- "$@"; }
+          for i in $(seq 1 30); do x http://api:8080/health >/dev/null 2>&1 && break; sleep 2; done
+          x http://localhost:8080/health
+          x http://api:8080/api/info | tee info.json; echo
+          grep -q '"postgres":"ok"' info.json
+          grep -q '"redis":"ok"' info.json
+          x --post-data='{"title":"creee par la CI"}' --header='Content-Type: application/json' \
+            http://api:8080/api/tasks; echo
+          x http://localhost:8080/api/tasks | grep -q 'creee par la CI'
+          echo "La pile Node répond de bout en bout."
+
+      - name: Journaux (en cas d'échec)
+        if: failure()
+        run: docker compose logs --no-color --tail=100
+
+      - name: Arrêt et nettoyage
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  publish:
+    name: Images — scan et publication
+    runs-on: ubuntu-latest
+    needs: integration
+    if: gitea.event_name == 'push'
+    # Scan et publication sont des steps de CE job : en mode host, un autre job pourrait être
+    # pris par le runner d'une autre VM, qui n'aurait pas les images dans son démon Docker.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Étiquette = SHA court du commit
+        run: echo "TAG=$(echo '${{ gitea.sha }}' | cut -c1-7)" >> "$GITHUB_ENV"
+
+      - name: Construction des images
+        run: |
+          docker build --pull -t "$IMAGE_API:$TAG" api
+          docker build --pull -t "$IMAGE_FRONT:$TAG" frontend
+
+      - name: Analyse de sécurité (bloquante sur CRITICAL)
+        run: |
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_API:$TAG"
+          trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE_FRONT:$TAG"
+
+      - name: Connexion au registre
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Publication
+        run: |
+          for img in "$IMAGE_API" "$IMAGE_FRONT"; do
+            docker push "$img:$TAG"
+            docker tag "$img:$TAG" "$img:latest"
+            docker push "$img:latest"
+            echo "Image publiée : $img:$TAG"
+          done
+
+      - name: Déconnexion
+        if: always()
+        run: docker logout "$REGISTRY"

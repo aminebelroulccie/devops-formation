@@ -1,0 +1,474 @@
+# Gabarit d'un espace étudiant. formini-a1 est remplacé par generate.sh.
+#
+#   Namespace        formini-a1           l'espace de l'étudiant
+#   ServiceAccount   formini-a1           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-a1-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-a1-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-a1
+  labels:
+    project: formation-devops
+    student: formini-a1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-a1
+  namespace: formini-a1
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-a1-token
+  namespace: formini-a1
+  annotations:
+    kubernetes.io/service-account.name: formini-a1
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-a1-admin
+  namespace: formini-a1
+subjects:
+  - kind: ServiceAccount
+    name: formini-a1
+    namespace: formini-a1
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-a1
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-a1
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---
+# Gabarit d'un espace étudiant. formini-a2 est remplacé par generate.sh.
+#
+#   Namespace        formini-a2           l'espace de l'étudiant
+#   ServiceAccount   formini-a2           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-a2-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-a2-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-a2
+  labels:
+    project: formation-devops
+    student: formini-a2
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-a2
+  namespace: formini-a2
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-a2-token
+  namespace: formini-a2
+  annotations:
+    kubernetes.io/service-account.name: formini-a2
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-a2-admin
+  namespace: formini-a2
+subjects:
+  - kind: ServiceAccount
+    name: formini-a2
+    namespace: formini-a2
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-a2
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-a2
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---
+# Gabarit d'un espace étudiant. formini-a3 est remplacé par generate.sh.
+#
+#   Namespace        formini-a3           l'espace de l'étudiant
+#   ServiceAccount   formini-a3           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-a3-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-a3-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-a3
+  labels:
+    project: formation-devops
+    student: formini-a3
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-a3
+  namespace: formini-a3
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-a3-token
+  namespace: formini-a3
+  annotations:
+    kubernetes.io/service-account.name: formini-a3
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-a3-admin
+  namespace: formini-a3
+subjects:
+  - kind: ServiceAccount
+    name: formini-a3
+    namespace: formini-a3
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-a3
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-a3
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---
+# Gabarit d'un espace étudiant. formini-b1 est remplacé par generate.sh.
+#
+#   Namespace        formini-b1           l'espace de l'étudiant
+#   ServiceAccount   formini-b1           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-b1-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-b1-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-b1
+  labels:
+    project: formation-devops
+    student: formini-b1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-b1
+  namespace: formini-b1
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-b1-token
+  namespace: formini-b1
+  annotations:
+    kubernetes.io/service-account.name: formini-b1
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-b1-admin
+  namespace: formini-b1
+subjects:
+  - kind: ServiceAccount
+    name: formini-b1
+    namespace: formini-b1
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-b1
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-b1
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---
+# Gabarit d'un espace étudiant. formini-b2 est remplacé par generate.sh.
+#
+#   Namespace        formini-b2           l'espace de l'étudiant
+#   ServiceAccount   formini-b2           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-b2-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-b2-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-b2
+  labels:
+    project: formation-devops
+    student: formini-b2
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-b2
+  namespace: formini-b2
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-b2-token
+  namespace: formini-b2
+  annotations:
+    kubernetes.io/service-account.name: formini-b2
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-b2-admin
+  namespace: formini-b2
+subjects:
+  - kind: ServiceAccount
+    name: formini-b2
+    namespace: formini-b2
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-b2
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-b2
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---
+# Gabarit d'un espace étudiant. formini-b3 est remplacé par generate.sh.
+#
+#   Namespace        formini-b3           l'espace de l'étudiant
+#   ServiceAccount   formini-b3           son identité (un jeton → un kubeconfig)
+#   RoleBinding      formini-b3-admin     ClusterRole "admin" limité à CE namespace :
+#                                          tout créer/modifier/supprimer dedans (Deployments,
+#                                          Services, Secrets, ConfigMaps, PVC, Roles…), rien ailleurs
+#   Secret           formini-b3-token     jeton durable du ServiceAccount (pour la semaine)
+#   ResourceQuota    quota                 garde-fou : un étudiant ne peut pas vider le cluster
+#   LimitRange       defaults              requests/limits par défaut pour les pods qui n'en ont pas
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: formini-b3
+  labels:
+    project: formation-devops
+    student: formini-b3
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formini-b3
+  namespace: formini-b3
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: formini-b3-token
+  namespace: formini-b3
+  annotations:
+    kubernetes.io/service-account.name: formini-b3
+type: kubernetes.io/service-account-token
+---
+# ClusterRole "admin" (fourni par Kubernetes) lié dans le namespace : accès complet à
+# l'intérieur, y compris créer des Roles/RoleBindings ; pas de droits sur le Namespace
+# lui-même, les quotas, ni quoi que ce soit en dehors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: formini-b3-admin
+  namespace: formini-b3
+subjects:
+  - kind: ServiceAccount
+    name: formini-b3
+    namespace: formini-b3
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota
+  namespace: formini-b3
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "30"
+    services.nodeports: "2"
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: formini-b3
+spec:
+  limits:
+    - type: Container
+      default:          { cpu: 250m, memory: 256Mi }   # limits appliquées si absentes
+      defaultRequest:   { cpu: 50m,  memory: 64Mi }    # requests appliquées si absentes
+      max:              { cpu: "2",  memory: 2Gi }
+---

@@ -218,6 +218,11 @@ sont-ils des steps du même job plutôt que des jobs séparés ? » La réponse 
 sur des VM différentes, démons Docker différents) est dans la fiche ; vérifier
 qu'ils l'ont comprise, puis les lancer sur le bonus cache ou pip-audit.
 
+**Équipes qui ont fini le jour 2 avec une pile `stack-*`** : les workflows correspondants sont dans
+`ateliers/jour3-cicd/exemples/<langage>/.gitea/`. Point d'attention : le job `integration` lance
+la pile complète sur le runner (`compose up --build --wait`) ; pour Rust, lancer le premier run
+avant la session (10 à 15 min), les suivants tiennent en 2 min grâce aux volumes de cache.
+
 **Tampon** : si les équipes sont en retard à 15:00, abandonner 2.4 (le tag) et le
 faire en démo au bilan. La protection de branche est plus importante que le tag.
 
