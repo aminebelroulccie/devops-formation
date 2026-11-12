@@ -10,4 +10,11 @@ export default defineConfig({
     host: true,
     proxy: { '/api': 'http://localhost:8081' },
   },
+  // Vitest : les tests tournent dans un DOM simulé (jsdom), sans navigateur ni API réelle.
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/setupTests.js',
+    include: ['src/**/*.test.{js,jsx}'],
+  },
 })

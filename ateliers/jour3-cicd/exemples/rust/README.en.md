@@ -53,6 +53,9 @@ curl -s localhost:8081/api/hits
    when the volume is created. `docker compose down -v` to replay it.
 4. **API image**: `docker images formini-rust-api` ≈ 30 MB. Compare with the other stacks.
 5. **Persistent data**: `down` then `up`, tasks and counter are still there; `down -v` wipes them.
+6. **Front-end tests without starting anything**: `cd frontend && npm ci && npm test`. Four Vitest +
+   Testing Library tests (`src/App.test.jsx`) against a mocked API: rendering, task creation, counter,
+   network error. The Day 3 pipeline runs them before building the image.
 
 ## Exercises
 

@@ -9,6 +9,9 @@
 #
 # Runner en mode HOST (étiquette ubuntu-latest:host) : docker, trivy, python3 et node sont sur
 # la VM. Go et Rust n'y sont pas : leurs étapes tournent dans l'image officielle via docker run.
+#
+# Variante « un dépôt par composant » : api/.gitea/ et frontend/.gitea/ contiennent chacun
+# leur propre pipeline, à utiliser si l'API et le front sont poussés dans deux dépôts séparés.
 
 name: CI
 
@@ -40,7 +43,7 @@ jobs:
 
       - name: Tests
         working-directory: api
-        run: ../.venv/bin/pytest -q
+        run: $GITHUB_WORKSPACE/.venv/bin/pytest -q
 
       - name: Audit des dépendances (informatif)
         continue-on-error: true
@@ -57,6 +60,10 @@ jobs:
       - name: Dépendances
         working-directory: frontend
         run: npm ci --no-audit --no-fund
+
+      - name: Tests (vitest + testing-library, API simulée)
+        working-directory: frontend
+        run: npm test
 
       - name: Construction (vite build)
         working-directory: frontend

@@ -26,20 +26,39 @@ go/                     (idem python/, react-node/, rust/)
 │   │   └── release.yml     tag v* : tests, images étiquetées avec la version, scan, publication
 │   └── compose.ci.yaml     surcharge : aucun port hôte publié pendant le test d'intégration
 ├── api/                    l'API dans le langage, avec ses tests unitaires
+│   └── .gitea/workflows/   ci.yml + release.yml de l'API seule (si api/ est un dépôt à part)
 ├── frontend/               le front React (Vite) servi par nginx
+│   └── .gitea/workflows/   ci.yml + release.yml du front seul (si frontend/ est un dépôt à part)
 ├── db/init.sql             schéma et données de démonstration PostgreSQL
 ├── compose.yaml, .env.example, .gitignore
 └── README.md               la fiche de la pile (démarrage, contrat d'API, exercices)
 ```
 
-## Le pipeline `ci.yml`
+## Deux façons de découper les dépôts
+
+| Découpage | Dépôt(s) Gitea | Pipeline utilisé | Ce qu'il teste |
+|-----------|----------------|------------------|----------------|
+| **Monorepo** (par défaut) | `equipe-a/formini-go` = tout le dossier | `.gitea/` à la racine | lint, tests, **pile complète en Compose**, deux images |
+| **Un dépôt par composant** | `equipe-a/formini-go-api` = `api/` seul, `equipe-a/formini-go-frontend` = `frontend/` seul | `api/.gitea/` et `frontend/.gitea/` | chacun : lint, tests et build, **sa** seule image ; le front vérifie en plus que son image démarre et répond sur `/health` |
+
+Les trois jeux de workflows publient les mêmes images, sous les mêmes noms : les manifestes
+Kubernetes du jour 4 fonctionnent avec les deux découpages. Pour le découpage par composant :
+
+```bash
+cp -r ateliers/jour3-cicd/exemples/go/api ~/formini-go-api && cd ~/formini-go-api
+git init -b main && git add -A && git commit -m "feat: API Go et pipeline CI"
+git remote add origin http://gitea.formini.local:3000/equipe-a/formini-go-api.git && git push -u origin main
+# idem avec frontend/ → equipe-a/formini-go-frontend
+```
+
+## Le pipeline `ci.yml` (monorepo)
 
 ```
   pull request / push main
           │
      ┌────┴─────┐
      ▼          ▼
-   api       frontend        lint + tests unitaires  |  npm ci + vite build
+   api       frontend        lint + tests unitaires  |  npm ci + tests vitest + vite build
      └────┬─────┘
           ▼
      integration             docker compose up --build --wait, puis depuis le conteneur frontend :
@@ -78,7 +97,7 @@ run : deux runs simultanés, ou deux runners sur la même VM, ne se disputent pa
 |------|---------|---------------|----------|
 | Go | 3 min | 1 min 30 | téléchargement des modules dans le volume `formini-go-mod` |
 | Python | 2 min | 1 min 30 | pip ; le venv est recréé à chaque run (bonus : `actions/cache`) |
-| Node | 2 min | 1 min 30 | `npm ci` pour l'API et le front |
+| Node | 2 min | 1 min 30 | `npm ci` pour l'API et le front ; les tests du front (Vitest, API simulée) prennent 5 s |
 | Rust | 10 à 15 min | 2 min | compilation des crates, puis cache dans `formini-cargo-registry` et `formini-rust-target` |
 
 Préparez le premier run Rust **avant** la session, ou lancez-le pendant une pause.

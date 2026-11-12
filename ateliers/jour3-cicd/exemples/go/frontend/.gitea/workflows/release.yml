@@ -1,0 +1,44 @@
+# Livraison d'une version — front React Formini (Go), en dépôt autonome
+#
+#   git tag -a v1.0.0 -m "Première version livrée" && git push origin v1.0.0
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  REGISTRY: gitea.formini.local:3000
+  IMAGE: gitea.formini.local:3000/equipe-a/formini-go-frontend
+  VERSION: ${{ gitea.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tests et construction (on ne livre jamais sans)
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
+
+      - name: Construction de l'image
+        run: docker build --pull -t "$IMAGE:$VERSION" .
+
+      - name: Analyse de sécurité
+        run: trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:$VERSION"
+
+      - name: Connexion au registre
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Publication
+        run: |
+          docker push "$IMAGE:$VERSION"
+          echo "Version $VERSION publiée : $IMAGE:$VERSION"
+
+      - name: Déconnexion
+        if: always()
+        run: docker logout "$REGISTRY"

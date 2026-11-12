@@ -26,20 +26,39 @@ go/                     (same for python/, react-node/, rust/)
 │   │   └── release.yml     v* tag: tests, images tagged with the version, scan, publication
 │   └── compose.ci.yaml     override: no host port published during the integration test
 ├── api/                    the API in the language, with its unit tests
+│   └── .gitea/workflows/   ci.yml + release.yml for the API alone (if api/ is its own repository)
 ├── frontend/               the React front end (Vite) served by nginx
+│   └── .gitea/workflows/   ci.yml + release.yml for the front end alone (if frontend/ is its own repository)
 ├── db/init.sql             PostgreSQL schema and demo data
 ├── compose.yaml, .env.example, .gitignore
 └── README.md               the stack sheet (start-up, API contract, exercises)
 ```
 
-## The `ci.yml` pipeline
+## Two ways to split the repositories
+
+| Split | Gitea repositories | Pipeline used | What it tests |
+|-------|--------------------|---------------|---------------|
+| **Monorepo** (default) | `equipe-a/formini-go` = the whole folder | `.gitea/` at the root | lint, tests, **full stack in Compose**, both images |
+| **One repository per component** | `equipe-a/formini-go-api` = `api/` alone, `equipe-a/formini-go-frontend` = `frontend/` alone | `api/.gitea/` and `frontend/.gitea/` | each: lint, tests and build, **its** image only; the front end also checks that its image starts and answers on `/health` |
+
+The three workflow sets publish the same images under the same names: the Day 4 Kubernetes
+manifests work with either split. For the per-component split:
+
+```bash
+cp -r ateliers/jour3-cicd/exemples/go/api ~/formini-go-api && cd ~/formini-go-api
+git init -b main && git add -A && git commit -m "feat: Go API and CI pipeline"
+git remote add origin http://gitea.formini.local:3000/equipe-a/formini-go-api.git && git push -u origin main
+# same with frontend/ → equipe-a/formini-go-frontend
+```
+
+## The `ci.yml` pipeline (monorepo)
 
 ```
   pull request / push main
           │
      ┌────┴─────┐
      ▼          ▼
-   api       frontend        lint + unit tests  |  npm ci + vite build
+   api       frontend        lint + unit tests  |  npm ci + vitest tests + vite build
      └────┬─────┘
           ▼
      integration             docker compose up --build --wait, then from the frontend container:
@@ -78,7 +97,7 @@ per run, so two simultaneous runs, or two runners on the same VM, never fight ov
 |-------|-----------|------------|-----|
 | Go | 3 min | 1 min 30 | module download into the `formini-go-mod` volume |
 | Python | 2 min | 1 min 30 | pip; the venv is recreated on every run (bonus: `actions/cache`) |
-| Node | 2 min | 1 min 30 | `npm ci` for the API and the front end |
+| Node | 2 min | 1 min 30 | `npm ci` for the API and the front end; the front-end tests (Vitest, mocked API) take 5 s |
 | Rust | 10 to 15 min | 2 min | crate compilation, then cached in `formini-cargo-registry` and `formini-rust-target` |
 
 Run the first Rust pipeline **before** the session, or start it during a break.

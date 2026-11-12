@@ -47,10 +47,11 @@ plus `k8s/`:
 
 ```
 api/            the Go API (pgx, go-redis) and its tests · distroless Dockerfile
-frontend/       the React front end (Vite) served by nginx, proxy /api/ → api:8080
+frontend/       the React front end (Vite) served by nginx, proxy /api/ → api:8080 · tests: npm test
 db/init.sql     PostgreSQL schema (same content as the postgres-init ConfigMap)
 compose.yaml    the stack locally: cp .env.example .env && docker compose up -d --build → http://localhost:8080
-.gitea/         Day 3 CI/CD pipeline: lint, tests, integration, scan, publish, release
+.gitea/         Day 3 CI/CD pipeline (monorepo): lint, tests, integration, scan, publish, release
+api/.gitea/, frontend/.gitea/   the same pipelines per component, if api/ and frontend/ are separate repositories
 k8s/            the Kubernetes manifests described below
 ```
 

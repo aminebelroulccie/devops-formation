@@ -54,6 +54,9 @@ curl -s localhost:8081/api/hits
 4. **Image de l'API** : `docker images formini-node-api` ≈ 140 Mo. Comparez avec les autres piles.
 5. **Données persistantes** : `down` puis `up`, tâches et compteur sont toujours là ; `down -v`
    les efface.
+6. **Tests du front sans rien lancer** : `cd frontend && npm ci && npm test`. Quatre tests Vitest +
+   Testing Library (`src/App.test.jsx`) avec une API simulée : affichage, création d'une tâche,
+   compteur, erreur réseau. Le pipeline du jour 3 les exécute avant de construire l'image.
 
 ## Exercices
 

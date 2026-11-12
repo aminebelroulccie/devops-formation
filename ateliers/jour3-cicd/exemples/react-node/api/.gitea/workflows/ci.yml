@@ -1,0 +1,75 @@
+# Pipeline d'intégration continue — API Formini Node, en dépôt autonome
+# (ce dossier api/ poussé seul dans Gitea, par exemple equipe-a/formini-node-api).
+#
+#   test     : lint + tests unitaires                       (pull request et push sur main)
+#   publish  : image → scan trivy → registre Gitea          (push sur main seulement)
+#
+# Runner en mode HOST (étiquette ubuntu-latest:host). Le test d'intégration de la pile complète
+# (PostgreSQL, Redis, front) est dans le pipeline du dépôt monorepo, à la racine de la pile.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  REGISTRY: gitea.formini.local:3000
+  IMAGE: gitea.formini.local:3000/equipe-a/formini-node-api
+
+jobs:
+  test:
+    name: Lint et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node est installé sur la VM (il fait tourner act_runner) : npm directement.
+      - name: Dépendances
+        working-directory: .
+        run: npm ci --no-audit --no-fund
+
+      - name: Vérification syntaxique
+        working-directory: .
+        run: node --check server.js
+
+      - name: Tests (node:test)
+        working-directory: .
+        run: npm test
+
+      - name: Audit des dépendances (informatif)
+        working-directory: .
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  publish:
+    name: Image — scan et publication
+    runs-on: ubuntu-latest
+    needs: test
+    if: gitea.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Étiquette = SHA court du commit
+        run: echo "TAG=$(echo '${{ gitea.sha }}' | cut -c1-7)" >> "$GITHUB_ENV"
+
+      - name: Construction de l'image
+        run: docker build --pull -t "$IMAGE:$TAG" .
+
+      - name: Analyse de sécurité (bloquante sur CRITICAL)
+        run: trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:$TAG"
+
+      - name: Connexion au registre
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Publication
+        run: |
+          docker push "$IMAGE:$TAG"
+          docker tag "$IMAGE:$TAG" "$IMAGE:latest"
+          docker push "$IMAGE:latest"
+          echo "Image publiée : $IMAGE:$TAG"
+
+      - name: Déconnexion
+        if: always()
+        run: docker logout "$REGISTRY"

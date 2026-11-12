@@ -4,3 +4,5 @@ dist
 *.md
 Dockerfile*
 .dockerignore
+*.test.jsx
+src/setupTests.js

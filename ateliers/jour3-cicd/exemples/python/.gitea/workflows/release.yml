@@ -37,7 +37,7 @@ jobs:
 
       - name: Tests
         working-directory: api
-        run: ../.venv/bin/pytest -q
+        run: $GITHUB_WORKSPACE/.venv/bin/pytest -q
 
       - name: Audit des dépendances (informatif)
         continue-on-error: true
